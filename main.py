@@ -39,11 +39,12 @@ class PlanilhaCustosApp:
         
         ttk.Label(frame_entrada, text="Valor Unitário:").grid(row=2, column=0, sticky=tk.W)
         self.entry_valor = ttk.Entry(frame_entrada, width=30)
+        self.entry_valor.insert(0, "0")
         self.entry_valor.grid(row=2, column=1, padx=5, pady=2, sticky=tk.W)
         
         ttk.Label(frame_entrada, text="Quantidade:").grid(row=3, column=0, sticky=tk.W)
         self.entry_quantidade = ttk.Entry(frame_entrada, width=30)
-        self.entry_quantidade.insert(0, "1")
+        self.entry_quantidade.insert(0, "0")
         self.entry_quantidade.grid(row=3, column=1, padx=5, pady=2, sticky=tk.W)
         
         ttk.Label(frame_entrada, text="Imposto (%):").grid(row=4, column=0, sticky=tk.W)
