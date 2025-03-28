@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import pandas as pd
-from datetime import datetime
 import os
 
 class PlanilhaCustosApp:
@@ -17,6 +16,8 @@ class PlanilhaCustosApp:
         ])
         
         self.current_file = None
+        self.editing = False
+        self.edit_entry = None
         
         # Criar interface
         self.criar_widgets()
@@ -61,20 +62,16 @@ class PlanilhaCustosApp:
         
         # Tabela para exibir os itens
         self.tree = ttk.Treeview(frame_tabela, columns=list(self.dados.columns), show="headings")
-         # Adicionar bind para edição
-        
-        self.tree.bind('<Double-1>', self.editar_celula)  # Duplo clique para editar
-        self.tree.bind('<Return>', self.editar_celula)    # Tecla Enter para editar
-
-        # Variável para controlar a edição
-        self.editing = False
-        self.edit_entry = None
         
         for col in self.dados.columns:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=100, anchor=tk.CENTER)
         
         self.tree.pack(fill=tk.BOTH, expand=True)
+        
+        # Configurar edição
+        self.tree.bind('<Double-1>', self.editar_celula)
+        self.tree.bind('<Return>', self.editar_celula)
         
         # Barra de rolagem
         scrollbar = ttk.Scrollbar(self.tree, orient="vertical", command=self.tree.yview)
@@ -87,95 +84,95 @@ class PlanilhaCustosApp:
         
         # Menu
         self.criar_menu()
-
-def editar_celula(self, event):
-    # Identificar item e coluna clicados
-    rowid = self.tree.identify_row(event.y)
-    column = self.tree.identify_column(event.x)
     
-    if not rowid or column == '#0':  # Clicou no cabeçalho ou área vazia
-        return
-    
-    # Obter posição e valor atual
-    x, y, width, height = self.tree.bbox(rowid, column)
-    value = self.tree.set(rowid, column)
-    
-    # Criar entrada de edição
-    self.edit_entry = ttk.Entry(self.tree, width=width)
-    self.edit_entry.place(x=x, y=y, width=width, height=height)
-    self.edit_entry.insert(0, value)
-    self.edit_entry.select_range(0, tk.END)
-    self.edit_entry.focus()
-    
-    # Configurar bindings para finalizar edição
-    self.edit_entry.bind('<FocusOut>', lambda e: self.finalizar_edicao(rowid, column))
-    self.edit_entry.bind('<Return>', lambda e: self.finalizar_edicao(rowid, column))
-    self.edit_entry.bind('<Escape>', lambda e: self.cancelar_edicao())
-    
-    self.editing = True
-
-def finalizar_edicao(self, rowid, column):
-    if not self.editing or not self.edit_entry:
-        return
-    
-    # Obter novo valor
-    new_value = self.edit_entry.get()
-    
-    # Atualizar treeview
-    column_index = int(column[1:]) - 1
-    column_name = self.dados.columns[column_index]
-    self.tree.set(rowid, column, new_value)
-    
-    # Atualizar DataFrame
-    row_index = self.tree.index(rowid)
-    self.dados.at[row_index, column_name] = self.converter_valor(new_value, column_name)
-    
-    # Recalcular valores dependentes se necessário
-    if column_name in ["Valor Unitário", "Quantidade", "Imposto (%)", "Custos Adicionais"]:
-        self.recalcular_linha(row_index)
-    
-    self.cancelar_edicao()
-
-def cancelar_edicao(self):
-    if self.edit_entry:
-        self.edit_entry.destroy()
-        self.edit_entry = None
-    self.editing = False
-
-def converter_valor(self, value, column_name):
-    # Converter para o tipo apropriado
-    if column_name in ["Item", "Descrição"]:
-        return str(value)
-    try:
-        return float(value) if '.' in value else int(value)
-    except ValueError:
-        return 0 if column_name not in ["Item", "Descrição"] else value
-
-def recalcular_linha(self, row_index):
-    # Recalcular valores da linha
-    row = self.dados.iloc[row_index]
-    
-    try:
-        valor_unitario = float(row["Valor Unitário"])
-        quantidade = float(row["Quantidade"])
-        imposto_perc = float(row["Imposto (%)"])
-        custos_adicionais = float(row["Custos Adicionais"])
+    def editar_celula(self, event):
+        # Identificar item e coluna clicados
+        rowid = self.tree.identify_row(event.y)
+        column = self.tree.identify_column(event.x)
         
-        subtotal = valor_unitario * quantidade
-        valor_imposto = subtotal * (imposto_perc / 100)
-        total = subtotal + valor_imposto + custos_adicionais
+        if not rowid or column == '#0':  # Clicou no cabeçalho ou área vazia
+            return
         
-        self.dados.at[row_index, "Subtotal"] = subtotal
-        self.dados.at[row_index, "Valor Imposto"] = valor_imposto
-        self.dados.at[row_index, "Total"] = total
+        # Obter posição e valor atual
+        x, y, width, height = self.tree.bbox(rowid, column)
+        value = self.tree.set(rowid, column)
         
-        # Atualizar exibição
-        valores = [self.dados.at[row_index, col] for col in self.dados.columns]
-        self.tree.item(self.tree.get_children()[row_index], values=valores)
+        # Criar entrada de edição
+        self.edit_entry = ttk.Entry(self.tree, width=width)
+        self.edit_entry.place(x=x, y=y, width=width, height=height)
+        self.edit_entry.insert(0, value)
+        self.edit_entry.select_range(0, tk.END)
+        self.edit_entry.focus()
         
-    except (ValueError, TypeError):
-        pass  # Manter valores atuais se houver erro na conversão
+        # Configurar bindings para finalizar edição
+        self.edit_entry.bind('<FocusOut>', lambda e: self.finalizar_edicao(rowid, column))
+        self.edit_entry.bind('<Return>', lambda e: self.finalizar_edicao(rowid, column))
+        self.edit_entry.bind('<Escape>', lambda e: self.cancelar_edicao())
         
+        self.editing = True
+
+    def finalizar_edicao(self, rowid, column):
+        if not self.editing or not self.edit_entry:
+            return
+        
+        # Obter novo valor
+        new_value = self.edit_entry.get()
+        
+        # Atualizar treeview
+        column_index = int(column[1:]) - 1
+        column_name = self.dados.columns[column_index]
+        self.tree.set(rowid, column, new_value)
+        
+        # Atualizar DataFrame
+        row_index = self.tree.index(rowid)
+        self.dados.at[row_index, column_name] = self.converter_valor(new_value, column_name)
+        
+        # Recalcular valores dependentes se necessário
+        if column_name in ["Valor Unitário", "Quantidade", "Imposto (%)", "Custos Adicionais"]:
+            self.recalcular_linha(row_index)
+        
+        self.cancelar_edicao()
+
+    def cancelar_edicao(self):
+        if self.edit_entry:
+            self.edit_entry.destroy()
+            self.edit_entry = None
+        self.editing = False
+
+    def converter_valor(self, value, column_name):
+        # Converter para o tipo apropriado
+        if column_name in ["Item", "Descrição"]:
+            return str(value)
+        try:
+            return float(value) if '.' in value else int(value)
+        except ValueError:
+            return 0 if column_name not in ["Item", "Descrição"] else value
+
+    def recalcular_linha(self, row_index):
+        # Recalcular valores da linha
+        row = self.dados.iloc[row_index]
+        
+        try:
+            valor_unitario = float(row["Valor Unitário"])
+            quantidade = float(row["Quantidade"])
+            imposto_perc = float(row["Imposto (%)"])
+            custos_adicionais = float(row["Custos Adicionais"])
+            
+            subtotal = valor_unitario * quantidade
+            valor_imposto = subtotal * (imposto_perc / 100)
+            total = subtotal + valor_imposto + custos_adicionais
+            
+            self.dados.at[row_index, "Subtotal"] = subtotal
+            self.dados.at[row_index, "Valor Imposto"] = valor_imposto
+            self.dados.at[row_index, "Total"] = total
+            
+            # Atualizar exibição
+            valores = [self.dados.at[row_index, col] for col in self.dados.columns]
+            self.tree.item(self.tree.get_children()[row_index], values=valores)
+            
+        except (ValueError, TypeError):
+            pass  # Manter valores atuais se houver erro na conversão
+
     def criar_menu(self):
         menubar = tk.Menu(self.root)
         
