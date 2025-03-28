@@ -6,22 +6,33 @@ import os
 class PlanilhaCustosApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Cálculo de Custos e Impostos")
-        self.root.geometry("1200x700")
+        self.root.title("Sistema de Cálculo de Custos e Impostos Completo")
+        self.root.geometry("1500x800")
         
-        # Dados da planilha
-        self.dados = pd.DataFrame(columns=[
-            "Item", "Descrição", "Valor Unitário", "Quantidade", 
-            "Subtotal", "Imposto (%)", "Valor Imposto", "Custos Adicionais", "Total"
-        ])
+        # Dados da planilha com todas as colunas solicitadas
+        self.colunas = [
+            "Descrição", "Valor Unitário de Custo (R$)", "Quantidade", "Valor Total de Custo (R$)", 
+            "Margem de Lucro Bruto (%)", "Valor Unitário de Venda (R$)", "Valor Total de Venda (R$)", 
+            "Estado de Destino", "ICMS (%)", "Valor unit. ICMS", "Valor do item ICMS (R$)", 
+            "PIS (%)", "Valor unit. PIS", "Valor Total PIS (R$)", "COFINS (%)", 
+            "Valor unit. COFINS", "Valor Total COFINS (R$)", "IRPJ (%)", 
+            "Valor Unit. IRRPJ", "Valor Total IRPJ (R$)", "CSLL (%)", 
+            "Valor Unit. CSLL", "Valor Total CSLL (R$)", "Valor Total de impostos", 
+            "Valor Total Unitário", "Valor Total", "Total Alíquota Impostos (%)"
+        ]
         
+        self.dados = pd.DataFrame(columns=self.colunas)
         self.current_file = None
-        self.editing = False
-        self.edit_entry = None
+        
+        # Estados brasileiros para combobox
+        self.estados_brasileiros = [
+            "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", 
+            "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", 
+            "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+        ]
         
         # Criar interface
         self.criar_widgets()
-
         
     def criar_widgets(self):
         # Frame de entrada de dados
@@ -29,65 +40,74 @@ class PlanilhaCustosApp:
         frame_entrada.pack(fill=tk.X, padx=10, pady=5)
         
         # Campos de entrada
-        ttk.Label(frame_entrada, text="Item:").grid(row=0, column=0, sticky=tk.W)
-        self.entry_item = ttk.Entry(frame_entrada, width=30)
-        self.entry_item.grid(row=0, column=1, padx=5, pady=2)
+        campos = [
+            ("Descrição:", "entry_descricao", 30),
+            ("Valor Unitário de Custo (R$):", "entry_valor_custo", 10),
+            ("Quantidade:", "entry_quantidade", 10),
+            ("Margem de Lucro Bruto (%):", "entry_margem", 10),
+            ("Estado de Destino:", "combo_estado", 5),
+            ("ICMS (%):", "entry_icms", 10),
+            ("PIS (%):", "entry_pis", 10),
+            ("COFINS (%):", "entry_cofins", 10),
+            ("IRPJ (%):", "entry_irpj", 10),
+            ("CSLL (%):", "entry_csll", 10)
+        ]
         
-        ttk.Label(frame_entrada, text="Descrição:").grid(row=1, column=0, sticky=tk.W)
-        self.entry_descricao = ttk.Entry(frame_entrada, width=30)
-        self.entry_descricao.grid(row=1, column=1, padx=5, pady=2)
+        for i, (label, var_name, width) in enumerate(campos):
+            ttk.Label(frame_entrada, text=label).grid(row=i//2, column=(i%2)*2, sticky=tk.W, padx=5, pady=2)
+            
+            if var_name.startswith("entry"):
+                entry = ttk.Entry(frame_entrada, width=width)
+                entry.grid(row=i//2, column=(i%2)*2+1, sticky=tk.W, padx=5, pady=2)
+                setattr(self, var_name, entry)
+            elif var_name.startswith("combo"):
+                combo = ttk.Combobox(frame_entrada, values=self.estados_brasileiros, width=width)
+                combo.grid(row=i//2, column=(i%2)*2+1, sticky=tk.W, padx=5, pady=2)
+                combo.set("SP")  # Valor padrão
+                setattr(self, var_name, combo)
         
-        ttk.Label(frame_entrada, text="Valor Unitário:").grid(row=2, column=0, sticky=tk.W)
-        self.entry_valor = ttk.Entry(frame_entrada, width=30)
-        self.entry_valor.insert(0, "0")
-        self.entry_valor.grid(row=2, column=1, padx=5, pady=2, sticky=tk.W)
-        
-        ttk.Label(frame_entrada, text="Quantidade:").grid(row=3, column=0, sticky=tk.W)
-        self.entry_quantidade = ttk.Entry(frame_entrada, width=30)
-        self.entry_quantidade.insert(0, "0")
-        self.entry_quantidade.grid(row=3, column=1, padx=5, pady=2, sticky=tk.W)
-        
-        ttk.Label(frame_entrada, text="Imposto (%):").grid(row=4, column=0, sticky=tk.W)
-        self.entry_imposto = ttk.Entry(frame_entrada, width=30)
-        self.entry_imposto.insert(0, "0")
-        self.entry_imposto.grid(row=4, column=1, padx=5, pady=2, sticky=tk.W)
-        
-        ttk.Label(frame_entrada, text="Custos Adicionais:").grid(row=5, column=0, sticky=tk.W)
-        self.entry_custos = ttk.Entry(frame_entrada, width=30)
-        self.entry_custos.insert(0, "0")
-        self.entry_custos.grid(row=5, column=1, padx=5, pady=2, sticky=tk.W)
+        # Valores padrão
+        self.entry_quantidade.insert(0, "1")
+        self.entry_margem.insert(0, "30")
+        self.entry_icms.insert(0, "18")
+        self.entry_pis.insert(0, "1.65")
+        self.entry_cofins.insert(0, "7.6")
+        self.entry_irpj.insert(0, "1.2")
+        self.entry_csll.insert(0, "1.08")
         
         # Botão para adicionar item
         btn_adicionar = ttk.Button(frame_entrada, text="Adicionar Item", command=self.adicionar_item)
-        btn_adicionar.grid(row=6, column=0, columnspan=2, pady=10)
+        btn_adicionar.grid(row=5, column=0, columnspan=4, pady=10)
         
         # Frame da tabela
         frame_tabela = ttk.LabelFrame(self.root, text="Itens da Planilha", padding=10)
         frame_tabela.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        # Container para Treeview e barra de rolagem
+        # Treeview com barra de rolagem
         container = ttk.Frame(frame_tabela)
         container.pack(fill=tk.BOTH, expand=True)
         
         # Treeview
         self.tree = ttk.Treeview(
             container, 
-            columns=list(self.dados.columns) + ["Ações"],
+            columns=self.colunas,
             show="headings",
-            selectmode="browse"
+            selectmode="extended"
         )
         
-        # Configurar colunas
-        col_widths = {
-            "Item": 120, "Descrição": 200, "Valor Unitário": 120,
-            "Quantidade": 100, "Subtotal": 120, "Imposto (%)": 100,
-            "Valor Imposto": 120, "Custos Adicionais": 140, "Total": 120,
-            "Ações": 100
+        # Configurar colunas (apenas as principais terão largura fixa)
+        colunas_principais = {
+            "Descrição": 200,
+            "Valor Unitário de Custo (R$)": 120,
+            "Quantidade": 80,
+            "Valor Total de Custo (R$)": 120,
+            "Valor Unitário de Venda (R$)": 120,
+            "Estado de Destino": 80
         }
         
-        for col in self.tree["columns"]:
+        for col in self.colunas:
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=col_widths.get(col, 100), anchor=tk.CENTER)
+            self.tree.column(col, width=colunas_principais.get(col, 100), anchor=tk.CENTER)
         
         # Barra de rolagem
         vsb = ttk.Scrollbar(container, orient="vertical", command=self.tree.yview)
@@ -105,161 +125,233 @@ class PlanilhaCustosApp:
         # Barra de status
         self.status_bar = ttk.Label(self.root, text="Pronto", relief=tk.SUNKEN)
         self.status_bar.pack(fill=tk.X, padx=10, pady=5)
-
+        
         # Menu
         self.criar_menu()
         
         # Eventos
         self.tree.bind('<Double-1>', self.editar_celula)
-        self.tree.bind('<Button-1>', self.on_tree_click)
 
-
-    def on_tree_click(self, event):
-        # Identificar onde foi clicado
-        region = self.tree.identify("region", event.x, event.y)
-        column = self.tree.identify_column(event.x)
-        item = self.tree.identify_row(event.y)
-        
-        # Se clicou na coluna "Ações"
-        if region == "cell" and column == "#10" and item:
-            row_index = self.tree.index(item)
-            self.excluir_linha(row_index)
-
+    def adicionar_item(self):
+        try:
+            # Obter valores dos campos
+            descricao = self.entry_descricao.get()
+            valor_custo = float(self.entry_valor_custo.get())
+            quantidade = float(self.entry_quantidade.get())
+            margem = float(self.entry_margem.get())
+            estado = self.combo_estado.get()
+            icms = float(self.entry_icms.get())
+            pis = float(self.entry_pis.get())
+            cofins = float(self.entry_cofins.get())
+            irpj = float(self.entry_irpj.get())
+            csll = float(self.entry_csll.get())
+            
+            # Cálculos básicos
+            valor_total_custo = valor_custo * quantidade
+            valor_unitario_venda = valor_custo * (1 + margem/100)
+            valor_total_venda = valor_unitario_venda * quantidade
+            
+            # Cálculos de impostos
+            valor_unit_icms = valor_unitario_venda * (icms/100)
+            valor_item_icms = valor_unit_icms * quantidade
+            
+            valor_unit_pis = valor_unitario_venda * (pis/100)
+            valor_total_pis = valor_unit_pis * quantidade
+            
+            valor_unit_cofins = valor_unitario_venda * (cofins/100)
+            valor_total_cofins = valor_unit_cofins * quantidade
+            
+            valor_unit_irpj = valor_unitario_venda * (irpj/100)
+            valor_total_irpj = valor_unit_irpj * quantidade
+            
+            valor_unit_csll = valor_unitario_venda * (csll/100)
+            valor_total_csll = valor_unit_csll * quantidade
+            
+            # Totais
+            valor_total_impostos = (valor_item_icms + valor_total_pis + valor_total_cofins + 
+                                  valor_total_irpj + valor_total_csll)
+            
+            valor_total_unitario = valor_unitario_venda + valor_unit_icms + valor_unit_pis + valor_unit_cofins + valor_unit_irpj + valor_unit_csll
+            valor_total = valor_total_venda + valor_total_impostos
+            
+            total_aliquota = icms + pis + cofins + irpj + csll
+            
+            # Criar novo item
+            novo_item = {
+                "Descrição": descricao,
+                "Valor Unitário de Custo (R$)": valor_custo,
+                "Quantidade": quantidade,
+                "Valor Total de Custo (R$)": valor_total_custo,
+                "Margem de Lucro Bruto (%)": margem,
+                "Valor Unitário de Venda (R$)": valor_unitario_venda,
+                "Valor Total de Venda (R$)": valor_total_venda,
+                "Estado de Destino": estado,
+                "ICMS (%)": icms,
+                "Valor unit. ICMS": valor_unit_icms,
+                "Valor do item ICMS (R$)": valor_item_icms,
+                "PIS (%)": pis,
+                "Valor unit. PIS": valor_unit_pis,
+                "Valor Total PIS (R$)": valor_total_pis,
+                "COFINS (%)": cofins,
+                "Valor unit. COFINS": valor_unit_cofins,
+                "Valor Total COFINS (R$)": valor_total_cofins,
+                "IRPJ (%)": irpj,
+                "Valor Unit. IRRPJ": valor_unit_irpj,
+                "Valor Total IRPJ (R$)": valor_total_irpj,
+                "CSLL (%)": csll,
+                "Valor Unit. CSLL": valor_unit_csll,
+                "Valor Total CSLL (R$)": valor_total_csll,
+                "Valor Total de impostos": valor_total_impostos,
+                "Valor Total Unitário": valor_total_unitario,
+                "Valor Total": valor_total,
+                "Total Alíquota Impostos (%)": total_aliquota
+            }
+            
+            # Adicionar ao DataFrame
+            self.dados.loc[len(self.dados)] = novo_item
+            self.atualizar_tabela()
+            
+            # Limpar campos
+            self.entry_descricao.delete(0, tk.END)
+            self.entry_valor_custo.delete(0, tk.END)
+            self.entry_quantidade.delete(0, tk.END)
+            self.entry_quantidade.insert(0, "1")
+            
+            self.status_bar.config(text="Item adicionado com sucesso!")
+            
+        except ValueError as e:
+            messagebox.showerror("Erro", f"Por favor, insira valores válidos.\nErro: {str(e)}")
 
     def atualizar_tabela(self):
         # Limpar tabela
         for item in self.tree.get_children():
             self.tree.delete(item)
         
-        # Adicionar dados
+        # Adicionar dados formatados
         for index, row in self.dados.iterrows():
-            valores = list(row) + ["Excluir"]
-            self.tree.insert("", tk.END, values=valores, iid=index)
-        
-        # Ajustar altura das linhas
-        self.tree.tag_configure('linha', font=('Arial', 10))
+            valores_formatados = [
+                f"{row[col]:.2f}" if isinstance(row[col], (float, int)) and not pd.isna(row[col]) else str(row[col])
+                for col in self.colunas
+            ]
+            self.tree.insert("", tk.END, values=valores_formatados)
 
-    
-
-    def editar_linha(self, index):
-        # Obter os dados da linha selecionada
-        linha = self.dados.iloc[index]
-        
-        # Preencher os campos de entrada
-        campos = {
-            'Item': self.entry_item,
-            'Descrição': self.entry_descricao,
-            'Valor Unitário': self.entry_valor,
-            'Quantidade': self.entry_quantidade,
-            'Imposto (%)': self.entry_imposto,
-            'Custos Adicionais': self.entry_custos
-        }
-        
-        for campo, entry in campos.items():
-            entry.delete(0, tk.END)
-            entry.insert(0, str(linha[campo]))
-        
-        # Remover a linha antiga
-        self.dados = self.dados.drop(index)
-        self.atualizar_tabela()
-        
-        self.status_bar.config(text=f"Editando linha {index + 1}")
-
-    def excluir_linha(self, index):
-        if messagebox.askyesno("Confirmar", "Deseja realmente excluir esta linha?", icon='warning'):
-            self.dados = self.dados.drop(index)
-            self.atualizar_tabela()
-            self.status_bar.config(text=f"Linha {index + 1} excluída com sucesso!")
-
-    
-    
     def editar_celula(self, event):
         # Identificar item e coluna clicados
-        rowid = self.tree.identify_row(event.y)
+        item = self.tree.identify_row(event.y)
         column = self.tree.identify_column(event.x)
         
-        if not rowid or column == '#0' or column == '#10':  # Ignorar cabeçalho e coluna Ações
+        if not item or column == '#0':
             return
         
-        # Obter posição e valor atual
-        x, y, width, height = self.tree.bbox(rowid, column)
-        value = self.tree.set(rowid, column)
+        # Obter valor atual
+        col_name = self.colunas[int(column[1:])-1]
+        row_index = int(self.tree.index(item))
+        current_value = self.dados.at[row_index, col_name]
         
-        # Criar entrada de edição
-        self.edit_entry = ttk.Entry(self.tree, width=width)
-        self.edit_entry.place(x=x, y=y, width=width, height=height)
-        self.edit_entry.insert(0, value)
-        self.edit_entry.select_range(0, tk.END)
-        self.edit_entry.focus()
+        # Criar janela de edição
+        self.janela_edicao = tk.Toplevel(self.root)
+        self.janela_edicao.title(f"Editar {col_name}")
         
-        # Configurar bindings para finalizar edição
-        self.edit_entry.bind('<FocusOut>', lambda e: self.finalizar_edicao(rowid, column))
-        self.edit_entry.bind('<Return>', lambda e: self.finalizar_edicao(rowid, column))
-        self.edit_entry.bind('<Escape>', lambda e: self.cancelar_edicao())
+        tk.Label(self.janela_edicao, text=col_name).pack(padx=10, pady=5)
         
-        self.editing = True
+        self.entry_edicao = ttk.Entry(self.janela_edicao)
+        self.entry_edicao.insert(0, str(current_value))
+        self.entry_edicao.pack(padx=10, pady=5)
+        self.entry_edicao.focus()
+        
+        btn_salvar = ttk.Button(
+            self.janela_edicao, 
+            text="Salvar", 
+            command=lambda: self.salvar_edicao(row_index, col_name)
+        )
+        btn_salvar.pack(pady=10)
 
-    def finalizar_edicao(self, rowid, column):
-        if not self.editing or not self.edit_entry:
-            return
-        
-        # Obter novo valor
-        new_value = self.edit_entry.get()
-        
-        # Atualizar treeview
-        column_index = int(column[1:]) - 1
-        column_name = self.dados.columns[column_index]
-        self.tree.set(rowid, column, new_value)
-        
-        # Atualizar DataFrame
-        row_index = self.tree.index(rowid)
-        self.dados.at[row_index, column_name] = self.converter_valor(new_value, column_name)
-        
-        # Recalcular valores dependentes se necessário
-        if column_name in ["Valor Unitário", "Quantidade", "Imposto (%)", "Custos Adicionais"]:
-            self.recalcular_linha(row_index)
-        
-        self.cancelar_edicao()
-
-    def cancelar_edicao(self):
-        if self.edit_entry:
-            self.edit_entry.destroy()
-            self.edit_entry = None
-        self.editing = False
-
-    def converter_valor(self, value, column_name):
-        # Converter para o tipo apropriado
-        if column_name in ["Item", "Descrição"]:
-            return str(value)
+    def salvar_edicao(self, row_index, col_name):
         try:
-            return float(value) if '.' in value else int(value)
+            novo_valor = self.entry_edicao.get()
+            
+            # Converter para o tipo apropriado
+            if col_name in ["Descrição", "Estado de Destino"]:
+                self.dados.at[row_index, col_name] = novo_valor
+            else:
+                self.dados.at[row_index, col_name] = float(novo_valor)
+            
+            # Recalcular todos os valores dependentes
+            self.recalcular_linha(row_index)
+            
+            self.janela_edicao.destroy()
+            self.atualizar_tabela()
+            
         except ValueError:
-            return 0 if column_name not in ["Item", "Descrição"] else value
+            messagebox.showerror("Erro", "Por favor, insira um valor válido.")
 
     def recalcular_linha(self, row_index):
-        # Recalcular valores da linha
+        # Obter a linha atualizada
         row = self.dados.iloc[row_index]
         
         try:
-            valor_unitario = float(row["Valor Unitário"])
-            quantidade = float(row["Quantidade"])
-            imposto_perc = float(row["Imposto (%)"])
-            custos_adicionais = float(row["Custos Adicionais"])
+            # Recalcular todos os valores
+            valor_custo = row["Valor Unitário de Custo (R$)"]
+            quantidade = row["Quantidade"]
+            margem = row["Margem de Lucro Bruto (%)"]
+            icms = row["ICMS (%)"]
+            pis = row["PIS (%)"]
+            cofins = row["COFINS (%)"]
+            irpj = row["IRPJ (%)"]
+            csll = row["CSLL (%)"]
             
-            subtotal = valor_unitario * quantidade
-            valor_imposto = subtotal * (imposto_perc / 100)
-            total = subtotal + valor_imposto + custos_adicionais
+            # Cálculos básicos
+            valor_total_custo = valor_custo * quantidade
+            valor_unitario_venda = valor_custo * (1 + margem/100)
+            valor_total_venda = valor_unitario_venda * quantidade
             
-            self.dados.at[row_index, "Subtotal"] = subtotal
-            self.dados.at[row_index, "Valor Imposto"] = valor_imposto
-            self.dados.at[row_index, "Total"] = total
+            # Cálculos de impostos
+            valor_unit_icms = valor_unitario_venda * (icms/100)
+            valor_item_icms = valor_unit_icms * quantidade
             
-            # Atualizar exibição
-            valores = [self.dados.at[row_index, col] for col in self.dados.columns]
-            self.tree.item(self.tree.get_children()[row_index], values=valores)
+            valor_unit_pis = valor_unitario_venda * (pis/100)
+            valor_total_pis = valor_unit_pis * quantidade
             
-        except (ValueError, TypeError):
-            pass  # Manter valores atuais se houver erro na conversão
+            valor_unit_cofins = valor_unitario_venda * (cofins/100)
+            valor_total_cofins = valor_unit_cofins * quantidade
+            
+            valor_unit_irpj = valor_unitario_venda * (irpj/100)
+            valor_total_irpj = valor_unit_irpj * quantidade
+            
+            valor_unit_csll = valor_unitario_venda * (csll/100)
+            valor_total_csll = valor_unit_csll * quantidade
+            
+            # Atualizar valores no DataFrame
+            self.dados.at[row_index, "Valor Total de Custo (R$)"] = valor_total_custo
+            self.dados.at[row_index, "Valor Unitário de Venda (R$)"] = valor_unitario_venda
+            self.dados.at[row_index, "Valor Total de Venda (R$)"] = valor_total_venda
+            self.dados.at[row_index, "Valor unit. ICMS"] = valor_unit_icms
+            self.dados.at[row_index, "Valor do item ICMS (R$)"] = valor_item_icms
+            self.dados.at[row_index, "Valor unit. PIS"] = valor_unit_pis
+            self.dados.at[row_index, "Valor Total PIS (R$)"] = valor_total_pis
+            self.dados.at[row_index, "Valor unit. COFINS"] = valor_unit_cofins
+            self.dados.at[row_index, "Valor Total COFINS (R$)"] = valor_total_cofins
+            self.dados.at[row_index, "Valor Unit. IRRPJ"] = valor_unit_irpj
+            self.dados.at[row_index, "Valor Total IRPJ (R$)"] = valor_total_irpj
+            self.dados.at[row_index, "Valor Unit. CSLL"] = valor_unit_csll
+            self.dados.at[row_index, "Valor Total CSLL (R$)"] = valor_total_csll
+            
+            # Totais
+            valor_total_impostos = (valor_item_icms + valor_total_pis + valor_total_cofins + 
+                                  valor_total_irpj + valor_total_csll)
+            
+            valor_total_unitario = valor_unitario_venda + valor_unit_icms + valor_unit_pis + valor_unit_cofins + valor_unit_irpj + valor_unit_csll
+            valor_total = valor_total_venda + valor_total_impostos
+            
+            total_aliquota = icms + pis + cofins + irpj + csll
+            
+            self.dados.at[row_index, "Valor Total de impostos"] = valor_total_impostos
+            self.dados.at[row_index, "Valor Total Unitário"] = valor_total_unitario
+            self.dados.at[row_index, "Valor Total"] = valor_total
+            self.dados.at[row_index, "Total Alíquota Impostos (%)"] = total_aliquota
+            
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao recalcular valores: {str(e)}")
 
     def criar_menu(self):
         menubar = tk.Menu(self.root)
@@ -278,79 +370,46 @@ class PlanilhaCustosApp:
         menu_acoes = tk.Menu(menubar, tearoff=0)
         menu_acoes.add_command(label="Calcular Totais", command=self.calcular_totais)
         menu_acoes.add_command(label="Limpar Planilha", command=self.limpar_planilha)
+        menu_acoes.add_command(label="Excluir Item Selecionado", command=self.excluir_selecionado)
         menubar.add_cascade(label="Ações", menu=menu_acoes)
-        
-        # Menu Ajuda
-        menu_ajuda = tk.Menu(menubar, tearoff=0)
-        menu_ajuda.add_command(label="Sobre", command=self.mostrar_sobre)
-        menubar.add_cascade(label="Ajuda", menu=menu_ajuda)
         
         self.root.config(menu=menubar)
     
-    def adicionar_item(self):
-        try:
-            item = self.entry_item.get()
-            descricao = self.entry_descricao.get()
-            valor_unitario = float(self.entry_valor.get())
-            quantidade = float(self.entry_quantidade.get())
-            imposto_perc = float(self.entry_imposto.get())
-            custos_adicionais = float(self.entry_custos.get())
-            
-            subtotal = valor_unitario * quantidade
-            valor_imposto = subtotal * (imposto_perc / 100)
-            total = subtotal + valor_imposto + custos_adicionais
-            
-            novo_item = {
-                "Item": item,
-                "Descrição": descricao,
-                "Valor Unitário": valor_unitario,
-                "Quantidade": quantidade,
-                "Subtotal": subtotal,
-                "Imposto (%)": imposto_perc,
-                "Valor Imposto": valor_imposto,
-                "Custos Adicionais": custos_adicionais,
-                "Total": total
-            }
-            
-            self.dados.loc[len(self.dados)] = novo_item
+    def excluir_selecionado(self):
+        selecionados = self.tree.selection()
+        if not selecionados:
+            messagebox.showwarning("Aviso", "Nenhum item selecionado para excluir")
+            return
+        
+        if messagebox.askyesno("Confirmar", f"Deseja excluir {len(selecionados)} item(ns)?"):
+            indices = [int(self.tree.index(item)) for item in selecionados]
+            self.dados = self.dados.drop(indices)
             self.atualizar_tabela()
-            
-            # Limpar campos de entrada
-            self.entry_item.delete(0, tk.END)
-            self.entry_descricao.delete(0, tk.END)
-            self.entry_valor.delete(0, tk.END)
-            self.entry_quantidade.delete(0, tk.END)
-            self.entry_quantidade.insert(0, "1")
-            self.entry_imposto.delete(0, tk.END)
-            self.entry_imposto.insert(0, "0")
-            self.entry_custos.delete(0, tk.END)
-            self.entry_custos.insert(0, "0")
-            
-            self.status_bar.config(text="Item adicionado com sucesso!")
-            
-        except ValueError as e:
-            messagebox.showerror("Erro", f"Por favor, insira valores válidos.\nErro: {str(e)}")
-    
+            self.status_bar.config(text=f"{len(selecionados)} item(ns) excluído(s) com sucesso!")
+
     def calcular_totais(self):
         if not self.dados.empty:
+            # Criar linha de totais
             totais = {
-                "Item": "TOTAL",
-                "Descrição": "",
-                "Valor Unitário": "",
+                "Descrição": "TOTAIS",
                 "Quantidade": self.dados["Quantidade"].sum(),
-                "Subtotal": self.dados["Subtotal"].sum(),
-                "Imposto (%)": "",
-                "Valor Imposto": self.dados["Valor Imposto"].sum(),
-                "Custos Adicionais": self.dados["Custos Adicionais"].sum(),
-                "Total": self.dados["Total"].sum()
+                "Valor Total de Custo (R$)": self.dados["Valor Total de Custo (R$)"].sum(),
+                "Valor Total de Venda (R$)": self.dados["Valor Total de Venda (R$)"].sum(),
+                "Valor do item ICMS (R$)": self.dados["Valor do item ICMS (R$)"].sum(),
+                "Valor Total PIS (R$)": self.dados["Valor Total PIS (R$)"].sum(),
+                "Valor Total COFINS (R$)": self.dados["Valor Total COFINS (R$)"].sum(),
+                "Valor Total IRPJ (R$)": self.dados["Valor Total IRPJ (R$)"].sum(),
+                "Valor Total CSLL (R$)": self.dados["Valor Total CSLL (R$)"].sum(),
+                "Valor Total de impostos": self.dados["Valor Total de impostos"].sum(),
+                "Valor Total": self.dados["Valor Total"].sum()
             }
             
             # Adicionar linha de totais
-            self.dados.loc[len(self.dados)] = totais
+            self.dados.loc["TOTAL"] = totais
             self.atualizar_tabela()
             
             # Remover a linha de totais para futuras adições
-            self.dados = self.dados.iloc[:-1]
+            self.dados = self.dados.drop("TOTAL", errors="ignore")
             
             self.status_bar.config(text="Totais calculados com sucesso!")
         else:
@@ -361,7 +420,7 @@ class PlanilhaCustosApp:
             if messagebox.askyesno("Novo Arquivo", "Deseja salvar as alterações antes de criar um novo arquivo?"):
                 self.salvar_arquivo()
         
-        self.dados = pd.DataFrame(columns=self.dados.columns)
+        self.dados = pd.DataFrame(columns=self.colunas)
         self.atualizar_tabela()
         self.current_file = None
         self.status_bar.config(text="Novo arquivo criado.")
@@ -381,6 +440,11 @@ class PlanilhaCustosApp:
                 else:
                     messagebox.showerror("Erro", "Formato de arquivo não suportado.")
                     return
+                
+                # Garantir que todas as colunas necessárias existam
+                for col in self.colunas:
+                    if col not in self.dados.columns:
+                        self.dados[col] = 0  # ou pd.NA conforme necessário
                 
                 self.atualizar_tabela()
                 self.current_file = filepath
@@ -420,19 +484,11 @@ class PlanilhaCustosApp:
     
     def limpar_planilha(self):
         if messagebox.askyesno("Limpar Planilha", "Tem certeza que deseja limpar toda a planilha?"):
-            self.dados = pd.DataFrame(columns=self.dados.columns)
+            self.dados = pd.DataFrame(columns=self.colunas)
             self.atualizar_tabela()
             self.status_bar.config(text="Planilha limpa.")
-    
-    def mostrar_sobre(self):
-        messagebox.showinfo("Sobre", "Sistema de Cálculo de Custos e Impostos\nVersão 1.0\n\nDesenvolvido para gerenciamento de projetos.")
 
 if __name__ == "__main__":
     root = tk.Tk()
-    
-    # Estilizar os botões
-    style = ttk.Style()
-    style.configure('Danger.TButton', foreground='red')
-    
     app = PlanilhaCustosApp(root)
     root.mainloop()
