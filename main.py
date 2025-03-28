@@ -7,7 +7,7 @@ class PlanilhaCustosApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Sistema de Cálculo de Custos e Impostos")
-        self.root.geometry("1000x600")
+        self.root.geometry("1200x700")
         
         # Dados da planilha
         self.dados = pd.DataFrame(columns=[
@@ -21,6 +21,7 @@ class PlanilhaCustosApp:
         
         # Criar interface
         self.criar_widgets()
+
         
     def criar_widgets(self):
         # Frame de entrada de dados
@@ -37,19 +38,22 @@ class PlanilhaCustosApp:
         self.entry_descricao.grid(row=1, column=1, padx=5, pady=2)
         
         ttk.Label(frame_entrada, text="Valor Unitário:").grid(row=2, column=0, sticky=tk.W)
-        self.entry_valor = ttk.Entry(frame_entrada, width=15)
+        self.entry_valor = ttk.Entry(frame_entrada, width=30)
         self.entry_valor.grid(row=2, column=1, padx=5, pady=2, sticky=tk.W)
         
         ttk.Label(frame_entrada, text="Quantidade:").grid(row=3, column=0, sticky=tk.W)
-        self.entry_quantidade = ttk.Entry(frame_entrada, width=15)
+        self.entry_quantidade = ttk.Entry(frame_entrada, width=30)
+        self.entry_quantidade.insert(0, "1")
         self.entry_quantidade.grid(row=3, column=1, padx=5, pady=2, sticky=tk.W)
         
         ttk.Label(frame_entrada, text="Imposto (%):").grid(row=4, column=0, sticky=tk.W)
-        self.entry_imposto = ttk.Entry(frame_entrada, width=15)
+        self.entry_imposto = ttk.Entry(frame_entrada, width=30)
+        self.entry_imposto.insert(0, "0")
         self.entry_imposto.grid(row=4, column=1, padx=5, pady=2, sticky=tk.W)
         
         ttk.Label(frame_entrada, text="Custos Adicionais:").grid(row=5, column=0, sticky=tk.W)
-        self.entry_custos = ttk.Entry(frame_entrada, width=15)
+        self.entry_custos = ttk.Entry(frame_entrada, width=30)
+        self.entry_custos.insert(0, "0")
         self.entry_custos.grid(row=5, column=1, padx=5, pady=2, sticky=tk.W)
         
         # Botão para adicionar item
@@ -60,37 +64,120 @@ class PlanilhaCustosApp:
         frame_tabela = ttk.LabelFrame(self.root, text="Itens da Planilha", padding=10)
         frame_tabela.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        # Tabela para exibir os itens
-        self.tree = ttk.Treeview(frame_tabela, columns=list(self.dados.columns), show="headings")
+        # Container para Treeview e barra de rolagem
+        container = ttk.Frame(frame_tabela)
+        container.pack(fill=tk.BOTH, expand=True)
         
-        for col in self.dados.columns:
+        # Treeview
+        self.tree = ttk.Treeview(
+            container, 
+            columns=list(self.dados.columns) + ["Ações"],
+            show="headings",
+            selectmode="browse"
+        )
+        
+        # Configurar colunas
+        col_widths = {
+            "Item": 120, "Descrição": 200, "Valor Unitário": 120,
+            "Quantidade": 100, "Subtotal": 120, "Imposto (%)": 100,
+            "Valor Imposto": 120, "Custos Adicionais": 140, "Total": 120,
+            "Ações": 100
+        }
+        
+        for col in self.tree["columns"]:
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=100, anchor=tk.CENTER)
-        
-        self.tree.pack(fill=tk.BOTH, expand=True)
-        
-        # Configurar edição
-        self.tree.bind('<Double-1>', self.editar_celula)
-        self.tree.bind('<Return>', self.editar_celula)
+            self.tree.column(col, width=col_widths.get(col, 100), anchor=tk.CENTER)
         
         # Barra de rolagem
-        scrollbar = ttk.Scrollbar(self.tree, orient="vertical", command=self.tree.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.tree.configure(yscrollcommand=scrollbar.set)
+        vsb = ttk.Scrollbar(container, orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(container, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        
+        # Layout
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
         
         # Barra de status
         self.status_bar = ttk.Label(self.root, text="Pronto", relief=tk.SUNKEN)
         self.status_bar.pack(fill=tk.X, padx=10, pady=5)
-        
+
         # Menu
         self.criar_menu()
+        
+        # Eventos
+        self.tree.bind('<Double-1>', self.editar_celula)
+        self.tree.bind('<Button-1>', self.on_tree_click)
+
+
+    def on_tree_click(self, event):
+        # Identificar onde foi clicado
+        region = self.tree.identify("region", event.x, event.y)
+        column = self.tree.identify_column(event.x)
+        item = self.tree.identify_row(event.y)
+        
+        # Se clicou na coluna "Ações"
+        if region == "cell" and column == "#10" and item:
+            row_index = self.tree.index(item)
+            self.excluir_linha(row_index)
+
+
+    def atualizar_tabela(self):
+        # Limpar tabela
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # Adicionar dados
+        for index, row in self.dados.iterrows():
+            valores = list(row) + ["Excluir"]
+            self.tree.insert("", tk.END, values=valores, iid=index)
+        
+        # Ajustar altura das linhas
+        self.tree.tag_configure('linha', font=('Arial', 10))
+
+    
+
+    def editar_linha(self, index):
+        # Obter os dados da linha selecionada
+        linha = self.dados.iloc[index]
+        
+        # Preencher os campos de entrada
+        campos = {
+            'Item': self.entry_item,
+            'Descrição': self.entry_descricao,
+            'Valor Unitário': self.entry_valor,
+            'Quantidade': self.entry_quantidade,
+            'Imposto (%)': self.entry_imposto,
+            'Custos Adicionais': self.entry_custos
+        }
+        
+        for campo, entry in campos.items():
+            entry.delete(0, tk.END)
+            entry.insert(0, str(linha[campo]))
+        
+        # Remover a linha antiga
+        self.dados = self.dados.drop(index)
+        self.atualizar_tabela()
+        
+        self.status_bar.config(text=f"Editando linha {index + 1}")
+
+    def excluir_linha(self, index):
+        if messagebox.askyesno("Confirmar", "Deseja realmente excluir esta linha?", icon='warning'):
+            self.dados = self.dados.drop(index)
+            self.atualizar_tabela()
+            self.status_bar.config(text=f"Linha {index + 1} excluída com sucesso!")
+
+    
     
     def editar_celula(self, event):
         # Identificar item e coluna clicados
         rowid = self.tree.identify_row(event.y)
         column = self.tree.identify_column(event.x)
         
-        if not rowid or column == '#0':  # Clicou no cabeçalho ou área vazia
+        if not rowid or column == '#0' or column == '#10':  # Ignorar cabeçalho e coluna Ações
             return
         
         # Obter posição e valor atual
@@ -206,7 +293,7 @@ class PlanilhaCustosApp:
             valor_unitario = float(self.entry_valor.get())
             quantidade = float(self.entry_quantidade.get())
             imposto_perc = float(self.entry_imposto.get())
-            custos_adicionais = float(self.entry_custos.get() if self.entry_custos.get() else 0)
+            custos_adicionais = float(self.entry_custos.get())
             
             subtotal = valor_unitario * quantidade
             valor_imposto = subtotal * (imposto_perc / 100)
@@ -232,23 +319,16 @@ class PlanilhaCustosApp:
             self.entry_descricao.delete(0, tk.END)
             self.entry_valor.delete(0, tk.END)
             self.entry_quantidade.delete(0, tk.END)
+            self.entry_quantidade.insert(0, "1")
             self.entry_imposto.delete(0, tk.END)
+            self.entry_imposto.insert(0, "0")
             self.entry_custos.delete(0, tk.END)
+            self.entry_custos.insert(0, "0")
             
             self.status_bar.config(text="Item adicionado com sucesso!")
             
         except ValueError as e:
             messagebox.showerror("Erro", f"Por favor, insira valores válidos.\nErro: {str(e)}")
-    
-    def atualizar_tabela(self):
-        # Limpar tabela
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        
-        # Preencher com novos dados
-        for _, row in self.dados.iterrows():
-            valores = [row[col] for col in self.dados.columns]
-            self.tree.insert("", tk.END, values=valores)
     
     def calcular_totais(self):
         if not self.dados.empty:
@@ -348,5 +428,10 @@ class PlanilhaCustosApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    
+    # Estilizar os botões
+    style = ttk.Style()
+    style.configure('Danger.TButton', foreground='red')
+    
     app = PlanilhaCustosApp(root)
     root.mainloop()
