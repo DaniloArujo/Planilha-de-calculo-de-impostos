@@ -33,12 +33,12 @@ class PlanilhaCustosApp:
         
         # Tabela de ICMS por estado (valores padrão)
         self.tabela_icms_estados = {
-            "AC": 17, "AL": 17, "AP": 17, "AM": 17, "BA": 17, 
-            "CE": 17, "DF": 17, "ES": 17, "GO": 17, "MA": 17, 
-            "MT": 17, "MS": 17, "MG": 18, "PA": 17, "PB": 17, 
-            "PR": 18, "PE": 17, "PI": 17, "RJ": 20, "RN": 17, 
-            "RS": 18, "RO": 17, "RR": 17, "SC": 17, "SP": 18, 
-            "SE": 17, "TO": 17
+            "AC": 17, "AL": 18, "AP": 18, "AM": 20, "BA": 20.5, 
+            "CE": 20, "DF": 20, "ES": 17, "GO": 17, "MA": 22, 
+            "MT": 17, "MS": 17, "MG": 18, "PA": 19, "PB": 18, 
+            "PR": 19.5, "PE": 20.5, "PI": 21, "RJ": 20, "RN": 18, 
+            "RS": 17, "RO": 17.5, "RR": 17, "SC": 17, "SP": 17, 
+            "SE": 18, "TO": 18
         }
         
         # Criar interface
