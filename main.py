@@ -255,6 +255,7 @@ class PlanilhaCustosApp:
             self.entry_valor_custo.insert(0, "1")  
             self.entry_quantidade.delete(0, tk.END)
             self.entry_quantidade.insert(0, "1") 
+        
 
             self.status_bar.config(text="Item adicionado com sucesso!")
             
