@@ -78,6 +78,7 @@ class PlanilhaCustosApp:
                 combo.bind("<<ComboboxSelected>>", self.atualizar_icms_por_estado)
         
         # Valores padrão
+        self.entry_valor_custo.insert(0, "1")
         self.entry_quantidade.insert(0, "1")
         self.entry_margem.insert(0, "30")
         self.entry_icms.insert(0, "18")
@@ -251,9 +252,10 @@ class PlanilhaCustosApp:
             # Limpar campos
             self.entry_descricao.delete(0, tk.END)
             self.entry_valor_custo.delete(0, tk.END)
+            self.entry_valor_custo.insert(0, "1")  
             self.entry_quantidade.delete(0, tk.END)
-            self.entry_quantidade.insert(0, "1")
-            
+            self.entry_quantidade.insert(0, "1") 
+
             self.status_bar.config(text="Item adicionado com sucesso!")
             
         except ValueError as e:
