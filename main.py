@@ -3,6 +3,16 @@ from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import os
 from typing import Dict, List, Optional, Union
+import locale
+
+# Configurar locale para pt_BR (padrão brasileiro)
+try:
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+except:
+    try:
+        locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
+    except:
+        print("Não foi possível configurar o locale para pt_BR. Usando padrão do sistema.")
 
 class TaxCalculator:
     """Classe responsável por calcular os impostos e valores relacionados"""
@@ -43,6 +53,7 @@ class DataModel:
     """Classe responsável por gerenciar os dados da aplicação"""
     def __init__(self):
         self.columns = [
+            "Item",  # Nova coluna para número do item
             "Descrição", "Valor Unitário de Custo (R$)", "Quantidade", "Valor Total de Custo (R$)", 
             "Margem de Lucro Bruto (%)", "Valor Unitário de Venda (R$)", "Valor Total de Venda (R$)", 
             "Estado de Destino", "ICMS (%)", "Valor unit. ICMS", "Valor do item ICMS (R$)", 
@@ -61,6 +72,7 @@ class DataModel:
             'IRPJ (%)': 1.2,
             'CSLL (%)': 1.08
         }
+        self.next_item_number = 1  # Contador para números de itens
         
         # Tabela de ICMS por estado
         self.state_icms_table = {
@@ -76,6 +88,9 @@ class DataModel:
         """Adiciona um novo item ao DataFrame"""
         tax_calculations = TaxCalculator.calculate_taxes(item_data, self.tax_rates)
         new_row = {**item_data, **tax_calculations}
+        new_row['Item'] = self.next_item_number  # Adiciona número do item
+        self.next_item_number += 1  # Incrementa para o próximo item
+        
         self.data.loc[len(self.data)] = new_row
     
     def update_item(self, index: int, column: str, new_value: Union[str, float]) -> None:
@@ -93,20 +108,25 @@ class DataModel:
     def delete_items(self, indices: List[int]) -> None:
         """Remove itens do DataFrame pelos índices"""
         self.data = self.data.drop(indices).reset_index(drop=True)
+        # Atualiza os números dos itens após exclusão
+        self.data['Item'] = range(1, len(self.data) + 1)
+        self.next_item_number = len(self.data) + 1
     
     def calculate_totals(self) -> Dict[str, float]:
         """Calcula os totais das colunas numéricas"""
         if self.data.empty:
             return {}
         
-        numeric_cols = [col for col in self.data.columns if col not in ['Descrição', 'Estado de Destino']]
+        numeric_cols = [col for col in self.data.columns if col not in ['Item', 'Descrição', 'Estado de Destino']]
         totals = self.data[numeric_cols].sum().to_dict()
         totals['Descrição'] = "TOTAIS"
+        totals['Item'] = ""
         return totals
     
     def clear_data(self) -> None:
         """Limpa todos os dados"""
         self.data = pd.DataFrame(columns=self.columns)
+        self.next_item_number = 1  # Reseta o contador de itens
     
     def load_from_file(self, filepath: str) -> None:
         """Carrega dados de um arquivo"""
@@ -116,6 +136,10 @@ class DataModel:
             self.data = pd.read_csv(filepath)
         else:
             raise ValueError("Formato de arquivo não suportado")
+        
+        # Atualiza o contador de itens
+        if not self.data.empty:
+            self.next_item_number = self.data['Item'].max() + 1
         
         self.current_file = filepath
     
@@ -201,8 +225,8 @@ class ICMSEditorWindow:
         
         def save_edit():
             try:
-                new_value = float(entry.get())
-                self.tree.set(item, "ICMS", f"{new_value:.2f}")
+                new_value = float(entry.get().replace(',', '.'))  # Converte vírgula para ponto
+                self.tree.set(item, "ICMS", f"{new_value:.2f}".replace('.', ','))  # Formata para padrão BR
                 self.state_icms_table[item] = new_value
                 entry.destroy()
             except ValueError:
@@ -243,7 +267,12 @@ class ItemEditorWindow:
             
             entry = ttk.Entry(self.frame)
             entry.grid(row=i, column=1, sticky=tk.W, padx=5, pady=2)
-            entry.insert(0, str(self.item_data[col]))
+            
+            # Formata o valor para exibição (padrão brasileiro)
+            if isinstance(self.item_data[col], (float, int)):
+                entry.insert(0, locale.format_string('%.2f', self.item_data[col], grouping=True))
+            else:
+                entry.insert(0, str(self.item_data[col]))
             
             self.entries[col] = entry
         
@@ -259,10 +288,12 @@ class ItemEditorWindow:
         new_values = {}
         for col, entry in self.entries.items():
             try:
-                if col in ['Descrição', 'Estado de Destino']:
+                if col in ['Descrição', 'Estado de Destino', 'Item']:
                     new_values[col] = entry.get()
                 else:
-                    new_values[col] = float(entry.get())
+                    # Converte de padrão brasileiro (vírgula decimal) para float
+                    value_str = entry.get().replace('.', '').replace(',', '.')
+                    new_values[col] = float(value_str)
             except ValueError:
                 messagebox.showerror("Erro", f"Valor inválido para {col}")
                 return
@@ -352,11 +383,12 @@ class MainView:
         
         # Configurar colunas
         column_widths = {
+            "Item": 50,  # Coluna para número do item
             "Descrição": 300,
-            "Valor Unitário de Custo (R$)": 300,
-            "Quantidade": 300,
-            "Valor Total de Custo (R$)": 300,
-            "Valor Unitário de Venda (R$)": 120,
+            "Valor Unitário de Custo (R$)": 150,
+            "Quantidade": 80,
+            "Valor Total de Custo (R$)": 150,
+            "Valor Unitário de Venda (R$)": 150,
             "Estado de Destino": 80,
             "ICMS (%)": 80,
             "Valor unit. ICMS": 120,
@@ -434,37 +466,41 @@ class MainView:
     
     def set_default_values(self) -> None:
         """Define valores padrão para os campos de entrada"""
-        self.input_widgets['unit_cost'].insert(0, "1")
-        self.input_widgets['quantity'].insert(0, "1")
-        self.input_widgets['profit_margin'].insert(0, "30")
+        self.input_widgets['unit_cost'].insert(0, "1,00")
+        self.input_widgets['quantity'].insert(0, "1,00")
+        self.input_widgets['profit_margin'].insert(0, "30,00")
         self.input_widgets['state'].set("SP")
-        self.input_widgets['icms'].insert(0, str(self.model.tax_rates['ICMS (%)']))
-        self.input_widgets['pis'].insert(0, str(self.model.tax_rates['PIS (%)']))
-        self.input_widgets['cofins'].insert(0, str(self.model.tax_rates['COFINS (%)']))
-        self.input_widgets['irpj'].insert(0, str(self.model.tax_rates['IRPJ (%)']))
-        self.input_widgets['csll'].insert(0, str(self.model.tax_rates['CSLL (%)']))
+        self.input_widgets['icms'].insert(0, locale.format_string('%.2f', self.model.tax_rates['ICMS (%)'], grouping=True))
+        self.input_widgets['pis'].insert(0, locale.format_string('%.2f', self.model.tax_rates['PIS (%)'], grouping=True))
+        self.input_widgets['cofins'].insert(0, locale.format_string('%.2f', self.model.tax_rates['COFINS (%)'], grouping=True))
+        self.input_widgets['irpj'].insert(0, locale.format_string('%.2f', self.model.tax_rates['IRPJ (%)'], grouping=True))
+        self.input_widgets['csll'].insert(0, locale.format_string('%.2f', self.model.tax_rates['CSLL (%)'], grouping=True))
     
     def update_icms_by_state(self, event=None) -> None:
         """Atualiza o ICMS com base no estado selecionado"""
         state = self.input_widgets['state'].get()
         if state in self.model.state_icms_table:
             self.input_widgets['icms'].delete(0, tk.END)
-            self.input_widgets['icms'].insert(0, str(self.model.state_icms_table[state]))
+            self.input_widgets['icms'].insert(0, locale.format_string('%.2f', self.model.state_icms_table[state], grouping=True))
     
     def add_item(self) -> None:
         """Adiciona um novo item à planilha"""
         try:
+            # Converte os valores de padrão brasileiro para float
+            def parse_br_number(value: str) -> float:
+                return float(value.replace('.', '').replace(',', '.'))
+            
             item_data = {
                 'Descrição': self.input_widgets['description'].get(),
-                'Valor Unitário de Custo (R$)': float(self.input_widgets['unit_cost'].get()),
-                'Quantidade': float(self.input_widgets['quantity'].get()),
-                'Margem de Lucro Bruto (%)': float(self.input_widgets['profit_margin'].get()),
+                'Valor Unitário de Custo (R$)': parse_br_number(self.input_widgets['unit_cost'].get()),
+                'Quantidade': parse_br_number(self.input_widgets['quantity'].get()),
+                'Margem de Lucro Bruto (%)': parse_br_number(self.input_widgets['profit_margin'].get()),
                 'Estado de Destino': self.input_widgets['state'].get(),
-                'ICMS (%)': float(self.input_widgets['icms'].get()),
-                'PIS (%)': float(self.input_widgets['pis'].get()),
-                'COFINS (%)': float(self.input_widgets['cofins'].get()),
-                'IRPJ (%)': float(self.input_widgets['irpj'].get()),
-                'CSLL (%)': float(self.input_widgets['csll'].get())
+                'ICMS (%)': parse_br_number(self.input_widgets['icms'].get()),
+                'PIS (%)': parse_br_number(self.input_widgets['pis'].get()),
+                'COFINS (%)': parse_br_number(self.input_widgets['cofins'].get()),
+                'IRPJ (%)': parse_br_number(self.input_widgets['irpj'].get()),
+                'CSLL (%)': parse_br_number(self.input_widgets['csll'].get())
             }
             
             self.model.add_item(item_data)
@@ -473,9 +509,9 @@ class MainView:
             # Limpar campos e redefinir valores padrão
             self.input_widgets['description'].delete(0, tk.END)
             self.input_widgets['unit_cost'].delete(0, tk.END)
-            self.input_widgets['unit_cost'].insert(0, "1")
+            self.input_widgets['unit_cost'].insert(0, "1,00")
             self.input_widgets['quantity'].delete(0, tk.END)
-            self.input_widgets['quantity'].insert(0, "1")
+            self.input_widgets['quantity'].insert(0, "1,00")
             
             self.status_bar.config(text="Item adicionado com sucesso!")
             
@@ -488,13 +524,19 @@ class MainView:
         for item in self.tree.get_children():
             self.tree.delete(item)
         
-        # Adicionar dados formatados
+        # Adicionar dados formatados no padrão brasileiro
         for index, row in self.model.data.iterrows():
-            formatted_values = [
-                f"{row[col]:.2f}" if isinstance(row[col], (float, int)) and not pd.isna(row[col]) 
-                else str(row[col])
-                for col in self.model.columns
-            ]
+            formatted_values = []
+            for col in self.model.columns:
+                value = row[col]
+                if isinstance(value, (float, int)) and not pd.isna(value):
+                    if col == 'Item':  # Número do item sem casas decimais
+                        formatted_values.append(str(int(value)))
+                    else:
+                        formatted_values.append(locale.format_string('%.2f', value, grouping=True))
+                else:
+                    formatted_values.append(str(value))
+            
             self.tree.insert("", tk.END, values=formatted_values, iid=str(index))
     
     def edit_cell(self, event) -> None:
@@ -529,12 +571,17 @@ class MainView:
     
     def update_row_in_table(self, row_index: int, item: str) -> None:
         """Atualiza uma linha específica na tabela"""
-        formatted_values = [
-            f"{self.model.data.at[row_index, col]:.2f}" 
-            if isinstance(self.model.data.at[row_index, col], (float, int)) and not pd.isna(self.model.data.at[row_index, col])
-            else str(self.model.data.at[row_index, col])
-            for col in self.model.columns
-        ]
+        formatted_values = []
+        for col in self.model.columns:
+            value = self.model.data.at[row_index, col]
+            if isinstance(value, (float, int)) and not pd.isna(value):
+                if col == 'Item':  # Número do item sem casas decimais
+                    formatted_values.append(str(int(value)))
+                else:
+                    formatted_values.append(locale.format_string('%.2f', value, grouping=True))
+            else:
+                formatted_values.append(str(value))
+        
         self.tree.item(item, values=formatted_values)
     
     def edit_icms_table(self) -> None:
@@ -568,12 +615,18 @@ class MainView:
         if not self.model.data.empty:
             totals = self.model.calculate_totals()
             
-            # Adicionar linha de totais
-            self.model.data.loc["TOTAL"] = totals
-            self.update_table()
+            # Formata os totais no padrão brasileiro
+            formatted_totals = []
+            for col in self.model.columns:
+                value = totals.get(col, "")
+                if isinstance(value, (float, int)) and col != 'Item':
+                    formatted_totals.append(locale.format_string('%.2f', value, grouping=True))
+                else:
+                    formatted_totals.append(str(value))
             
-            # Remover a linha de totais para futuras adições
-            self.model.data = self.model.data.drop("TOTAL", errors="ignore")
+            # Adicionar linha de totais
+            self.tree.insert("", tk.END, values=formatted_totals, tags=('total',))
+            self.tree.tag_configure('total', background='#f0f0f0', font=('Helvetica', 10, 'bold'))
             
             self.status_bar.config(text="Totais calculados com sucesso!")
         else:
