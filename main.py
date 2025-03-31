@@ -9,7 +9,7 @@ class PlanilhaCustosApp:
         self.root.title("Sistema de Cálculo de Custos e Impostos Completo")
         self.root.geometry("1500x800")
         
-        # Dados da planilha com todas as colunas solicitadas
+        # Colunas da planilha
         self.colunas = [
             "Descrição", "Valor Unitário de Custo (R$)", "Quantidade", "Valor Total de Custo (R$)", 
             "Margem de Lucro Bruto (%)", "Valor Unitário de Venda (R$)", "Valor Total de Venda (R$)", 
@@ -30,6 +30,16 @@ class PlanilhaCustosApp:
             "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", 
             "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
         ]
+        
+        # Tabela de ICMS por estado (valores padrão)
+        self.tabela_icms_estados = {
+            "AC": 17, "AL": 17, "AP": 17, "AM": 17, "BA": 17, 
+            "CE": 17, "DF": 17, "ES": 17, "GO": 17, "MA": 17, 
+            "MT": 17, "MS": 17, "MG": 18, "PA": 17, "PB": 17, 
+            "PR": 18, "PE": 17, "PI": 17, "RJ": 20, "RN": 17, 
+            "RS": 18, "RO": 17, "RR": 17, "SC": 17, "SP": 18, 
+            "SE": 17, "TO": 17
+        }
         
         # Criar interface
         self.criar_widgets()
@@ -65,6 +75,7 @@ class PlanilhaCustosApp:
                 combo.grid(row=i//2, column=(i%2)*2+1, sticky=tk.W, padx=5, pady=2)
                 combo.set("SP")  # Valor padrão
                 setattr(self, var_name, combo)
+                combo.bind("<<ComboboxSelected>>", self.atualizar_icms_por_estado)
         
         # Valores padrão
         self.entry_quantidade.insert(0, "1")
@@ -95,14 +106,33 @@ class PlanilhaCustosApp:
             selectmode="extended"
         )
         
-        # Configurar colunas (apenas as principais terão largura fixa)
+        # Configurar colunas 
         colunas_principais = {
-            "Descrição": 200,
-            "Valor Unitário de Custo (R$)": 120,
-            "Quantidade": 80,
-            "Valor Total de Custo (R$)": 120,
+            "Descrição": 300,
+            "Valor Unitário de Custo (R$)": 300,
+            "Quantidade": 300,
+            "Valor Total de Custo (R$)": 300,
             "Valor Unitário de Venda (R$)": 120,
-            "Estado de Destino": 80
+            "Estado de Destino": 80,
+            "ICMS (%)": 80,
+            "Valor unit. ICMS": 120,
+            "Valor do item ICMS (R$)": 150,
+            "PIS (%)": 80,
+            "Valor unit. PIS": 120,
+            "Valor Total PIS (R$)": 150,
+            "COFINS (%)": 80,
+            "Valor unit. COFINS": 120,
+            "Valor Total COFINS (R$)": 150,
+            "IRPJ (%)": 80,
+            "Valor Unit. IRRPJ": 120,
+            "Valor Total IRPJ (R$)": 150,
+            "CSLL (%)": 80,
+            "Valor Unit. CSLL": 120,
+            "Valor Total CSLL (R$)": 150,
+            "Valor Total de impostos": 150,
+            "Valor Total Unitário": 150,
+            "Valor Total": 150,
+            "Total Alíquota Impostos (%)": 150
         }
         
         for col in self.colunas:
@@ -131,6 +161,13 @@ class PlanilhaCustosApp:
         
         # Eventos
         self.tree.bind('<Double-1>', self.editar_celula)
+
+    def atualizar_icms_por_estado(self, event=None):
+        """Atualiza o campo ICMS com o valor correspondente ao estado selecionado"""
+        estado = self.combo_estado.get()
+        if estado in self.tabela_icms_estados:
+            self.entry_icms.delete(0, tk.END)
+            self.entry_icms.insert(0, str(self.tabela_icms_estados[estado]))
 
     def adicionar_item(self):
         try:
@@ -233,7 +270,7 @@ class PlanilhaCustosApp:
                 f"{row[col]:.2f}" if isinstance(row[col], (float, int)) and not pd.isna(row[col]) else str(row[col])
                 for col in self.colunas
             ]
-            self.tree.insert("", tk.END, values=valores_formatados)
+            self.tree.insert("", tk.END, values=valores_formatados, iid=str(index))
 
     def editar_celula(self, event):
         # Identificar item e coluna clicados
@@ -245,12 +282,14 @@ class PlanilhaCustosApp:
         
         # Obter valor atual
         col_name = self.colunas[int(column[1:])-1]
-        row_index = int(self.tree.index(item))
+        row_index = int(item)
         current_value = self.dados.at[row_index, col_name]
         
         # Criar janela de edição
         self.janela_edicao = tk.Toplevel(self.root)
         self.janela_edicao.title(f"Editar {col_name}")
+        self.janela_edicao.transient(self.root)
+        self.janela_edicao.grab_set()
         
         tk.Label(self.janela_edicao, text=col_name).pack(padx=10, pady=5)
         
@@ -262,11 +301,11 @@ class PlanilhaCustosApp:
         btn_salvar = ttk.Button(
             self.janela_edicao, 
             text="Salvar", 
-            command=lambda: self.salvar_edicao(row_index, col_name)
+            command=lambda: self.salvar_edicao(row_index, col_name, item)
         )
         btn_salvar.pack(pady=10)
 
-    def salvar_edicao(self, row_index, col_name):
+    def salvar_edicao(self, row_index, col_name, item):
         try:
             novo_valor = self.entry_edicao.get()
             
@@ -276,21 +315,26 @@ class PlanilhaCustosApp:
             else:
                 self.dados.at[row_index, col_name] = float(novo_valor)
             
-            # Recalcular todos os valores dependentes
-            self.recalcular_linha(row_index)
-            
+            # Fechar janela de edição
             self.janela_edicao.destroy()
-            self.atualizar_tabela()
+            
+            # Recalcular TODOS os valores dependentes
+            self.recalcular_todos_os_valores(row_index)
+            
+            # Atualizar exibição
+            self.atualizar_linha_na_tabela(row_index, item)
+            
+            self.status_bar.config(text="Item atualizado com sucesso!")
             
         except ValueError:
             messagebox.showerror("Erro", "Por favor, insira um valor válido.")
 
-    def recalcular_linha(self, row_index):
-        # Obter a linha atualizada
+    def recalcular_todos_os_valores(self, row_index):
+        """Recalcula todos os valores dependentes após uma edição"""
         row = self.dados.iloc[row_index]
         
         try:
-            # Recalcular todos os valores
+            # Obter valores básicos (alguns podem ter sido editados)
             valor_custo = row["Valor Unitário de Custo (R$)"]
             quantidade = row["Quantidade"]
             margem = row["Margem de Lucro Bruto (%)"]
@@ -300,7 +344,7 @@ class PlanilhaCustosApp:
             irpj = row["IRPJ (%)"]
             csll = row["CSLL (%)"]
             
-            # Cálculos básicos
+            # Recalcular valores dependentes
             valor_total_custo = valor_custo * quantidade
             valor_unitario_venda = valor_custo * (1 + margem/100)
             valor_total_venda = valor_unitario_venda * quantidade
@@ -321,7 +365,7 @@ class PlanilhaCustosApp:
             valor_unit_csll = valor_unitario_venda * (csll/100)
             valor_total_csll = valor_unit_csll * quantidade
             
-            # Atualizar valores no DataFrame
+            # Atualizar DataFrame
             self.dados.at[row_index, "Valor Total de Custo (R$)"] = valor_total_custo
             self.dados.at[row_index, "Valor Unitário de Venda (R$)"] = valor_unitario_venda
             self.dados.at[row_index, "Valor Total de Venda (R$)"] = valor_total_venda
@@ -353,6 +397,15 @@ class PlanilhaCustosApp:
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao recalcular valores: {str(e)}")
 
+    def atualizar_linha_na_tabela(self, row_index, item):
+        """Atualiza apenas a linha modificada na tabela"""
+        valores_formatados = [
+            f"{self.dados.at[row_index, col]:.2f}" if isinstance(self.dados.at[row_index, col], (float, int)) and not pd.isna(self.dados.at[row_index, col]) 
+            else str(self.dados.at[row_index, col])
+            for col in self.colunas
+        ]
+        self.tree.item(item, values=valores_formatados)
+
     def criar_menu(self):
         menubar = tk.Menu(self.root)
         
@@ -373,7 +426,87 @@ class PlanilhaCustosApp:
         menu_acoes.add_command(label="Excluir Item Selecionado", command=self.excluir_selecionado)
         menubar.add_cascade(label="Ações", menu=menu_acoes)
         
+        # Menu Configurações
+        menu_config = tk.Menu(menubar, tearoff=0)
+        menu_config.add_command(label="Editar Tabela de ICMS por Estado", command=self.editar_tabela_icms)
+        menubar.add_cascade(label="Configurações", menu=menu_config)
+        
         self.root.config(menu=menubar)
+    
+    def editar_tabela_icms(self):
+        """Abre uma janela para editar os valores de ICMS por estado"""
+        janela_icms = tk.Toplevel(self.root)
+        janela_icms.title("Editar Tabela de ICMS por Estado")
+        janela_icms.geometry("500x600")
+        
+        # Frame principal
+        frame_principal = ttk.Frame(janela_icms)
+        frame_principal.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Treeview para exibir e editar os valores
+        tree = ttk.Treeview(frame_principal, columns=("Estado", "ICMS"), show="headings")
+        tree.heading("Estado", text="Estado")
+        tree.heading("ICMS", text="ICMS (%)")
+        tree.column("Estado", width=100)
+        tree.column("ICMS", width=100)
+        
+        # Adicionar barra de rolagem
+        scrollbar = ttk.Scrollbar(frame_principal, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Layout
+        tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        frame_principal.grid_rowconfigure(0, weight=1)
+        frame_principal.grid_columnconfigure(0, weight=1)
+        
+        # Preencher a treeview com os valores atuais
+        for estado, icms in sorted(self.tabela_icms_estados.items()):
+            tree.insert("", tk.END, values=(estado, icms), iid=estado)
+        
+        # Função para editar célula
+        def editar_celula(event):
+            item = tree.identify_row(event.y)
+            column = tree.identify_column(event.x)
+            
+            if not item or column == '#0':
+                return
+            
+            # Obter valor atual
+            if column == '#1':  # Coluna Estado (não editável)
+                return
+            else:  # Coluna ICMS
+                current_value = tree.set(item, "ICMS")
+                
+                # Criar entrada para edição
+                x, y, width, height = tree.bbox(item, column)
+                entry = ttk.Entry(tree)
+                entry.place(x=x, y=y, width=width, height=height, anchor=tk.NW)
+                entry.insert(0, current_value)
+                entry.focus()
+                
+                def salvar_edicao():
+                    try:
+                        novo_valor = float(entry.get())
+                        tree.set(item, "ICMS", f"{novo_valor:.2f}")
+                        self.tabela_icms_estados[item] = novo_valor
+                        entry.destroy()
+                    except ValueError:
+                        messagebox.showerror("Erro", "Por favor, insira um valor numérico válido.")
+                
+                entry.bind("<FocusOut>", lambda e: salvar_edicao())
+                entry.bind("<Return>", lambda e: salvar_edicao())
+        
+        tree.bind('<Double-1>', editar_celula)
+        
+        # Botão para salvar
+        btn_salvar = ttk.Button(
+            frame_principal, 
+            text="Salvar Alterações", 
+            command=janela_icms.destroy
+        )
+        btn_salvar.grid(row=1, column=0, columnspan=2, pady=10)
     
     def excluir_selecionado(self):
         selecionados = self.tree.selection()
@@ -382,7 +515,7 @@ class PlanilhaCustosApp:
             return
         
         if messagebox.askyesno("Confirmar", f"Deseja excluir {len(selecionados)} item(ns)?"):
-            indices = [int(self.tree.index(item)) for item in selecionados]
+            indices = [int(item) for item in selecionados]
             self.dados = self.dados.drop(indices)
             self.atualizar_tabela()
             self.status_bar.config(text=f"{len(selecionados)} item(ns) excluído(s) com sucesso!")
