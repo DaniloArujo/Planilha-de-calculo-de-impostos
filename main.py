@@ -600,7 +600,7 @@ class MainView:
         help_btn.pack(side=tk.RIGHT, padx=(0, 10))
     
     def create_input_frame(self) -> None:
-        """Cria o frame de entrada de dados"""
+        """Cria o frame de entrada de dados com layout otimizado"""
         self.input_frame = ttk.LabelFrame(
             self.root, 
             text=" Adicionar Item ", 
@@ -609,44 +609,67 @@ class MainView:
         )
         self.input_frame.pack(fill=tk.X, padx=15, pady=(10, 5), ipady=5)
         
+        # Configuração do grid para melhor organização
         self.input_frame.grid_columnconfigure(1, weight=1)
         self.input_frame.grid_columnconfigure(3, weight=1)
+        self.input_frame.grid_columnconfigure(5, minsize=10)  # Espaçamento entre colunas
         
-        fields = [
-            (0, "Descrição:", "description", 30),
-            (1, "Valor Unitário de Custo (R$):", "unit_cost", 15),
-            (2, "Quantidade:", "quantity", 10),
-            (3, "Margem de Lucro Bruto (%):", "profit_margin", 10),
-            (4, "Estado de Destino:", "state", 5),
-            (5, "ICMS (%):", "icms", 10),
-            (6, "PIS (%):", "pis", 10),
-            (7, "COFINS (%):", "cofins", 10),
-            (8, "IRPJ (%):", "irpj", 10),
-            (9, "CSLL (%):", "csll", 10)
+        # Campos principais (esquerda)
+        left_fields = [
+            ("Descrição:", "description", 30),
+            ("Valor Unitário de Custo (R$):", "unit_cost", 15),
+            ("Quantidade:", "quantity", 10),
+            ("Margem de Lucro Bruto (%):", "profit_margin", 10),
+            ("Estado de Destino:", "state", 5)
+        ]
+        
+        # Campos de impostos (direita)
+        right_fields = [
+            ("ICMS (%):", "icms", 10),
+            ("PIS (%):", "pis", 10),
+            ("COFINS (%):", "cofins", 10),
+            ("IRPJ (%):", "irpj", 10),
+            ("CSLL (%):", "csll", 10)
         ]
         
         self.input_widgets = {}
-        for i, (row, label, name, width) in enumerate(fields):
+        
+        # Adiciona campos da esquerda
+        for row, (label, name, width) in enumerate(left_fields):
             lbl = ttk.Label(self.input_frame, text=label)
-            lbl.grid(row=row, column=i%2*2, sticky=tk.W, padx=5, pady=5)
+            lbl.grid(row=row, column=0, sticky=tk.W, padx=5, pady=3)
             
             if name == "state":
-                widget = ttk.Combobox(self.input_frame, values=self.brazilian_states, width=width)
+                widget = ttk.Combobox(self.input_frame, 
+                                    values=self.brazilian_states, 
+                                    width=width,
+                                    state="readonly")
                 widget.bind("<<ComboboxSelected>>", self.controller.update_icms_by_state)
             else:
                 widget = ttk.Entry(self.input_frame, width=width)
             
-            widget.grid(row=row, column=i%2*2+1, sticky=tk.EW, padx=5, pady=5)
+            widget.grid(row=row, column=1, sticky=tk.EW, padx=5, pady=3)
             self.input_widgets[name] = widget
         
-        button_frame = ttk.Frame(self.input_frame)
-        button_frame.grid(row=10, column=0, columnspan=4, pady=(15, 5), sticky=tk.EW)
+        # Adiciona campos da direita
+        for row, (label, name, width) in enumerate(right_fields):
+            lbl = ttk.Label(self.input_frame, text=label)
+            lbl.grid(row=row, column=3, sticky=tk.W, padx=(15,5), pady=3)
+            
+            widget = ttk.Entry(self.input_frame, width=width)
+            widget.grid(row=row, column=4, sticky=tk.EW, padx=5, pady=3)
+            self.input_widgets[name] = widget
         
-        button_frame.grid_columnconfigure(0, weight=1)  
-        button_frame.grid_columnconfigure(1, weight=0)  
-        button_frame.grid_columnconfigure(2, weight=0)  
-        button_frame.grid_columnconfigure(3, weight=1)  
-                
+        # Frame para botões (ocupando toda a largura)
+        button_frame = ttk.Frame(self.input_frame)
+        button_frame.grid(row=5, column=0, columnspan=5, pady=(10, 0), sticky=tk.EW)
+        
+        button_frame.grid_columnconfigure(0, weight=1)
+        button_frame.grid_columnconfigure(1, weight=0)
+        button_frame.grid_columnconfigure(2, weight=0)
+        button_frame.grid_columnconfigure(3, weight=1)
+        
+        # Botões com espaçamento adequado
         add_btn = ttk.Button(
             button_frame, 
             text="Adicionar Item", 
