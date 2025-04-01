@@ -366,7 +366,7 @@ class ICMSEditorWindow:
         self.window.destroy()
 
 class ItemEditorWindow:
-    """Janela para edição de um item específico"""
+    """Janela compacta para edição de um item específico"""
     def __init__(self, parent, item_data: Dict[str, Union[str, float]], columns: List[str], update_callback):
         self.parent = parent
         self.item_data = item_data.copy()
@@ -375,14 +375,22 @@ class ItemEditorWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Editar Item")
-        self.window.geometry("450x350")
+        self.window.geometry("400x200")  # Tamanho menor e fixo
         self.window.configure(bg=ColorScheme.BACKGROUND.value)
         self.window.transient(parent)
         self.window.grab_set()
         
+        # Centraliza a janela
+        self.center_window()
+        
         self.style = ttk.Style()
-        self.style.configure("TLabel", font=Fonts.BODY.value, background=ColorScheme.BACKGROUND.value)
-        self.style.configure("TEntry", font=Fonts.BODY.value, padding=5, fieldbackground=ColorScheme.WHITE.value)
+        self.style.configure("TLabel", 
+                           font=Fonts.BODY.value, 
+                           background=ColorScheme.BACKGROUND.value)
+        self.style.configure("TEntry", 
+                           font=Fonts.BODY.value, 
+                           padding=5, 
+                           fieldbackground=ColorScheme.WHITE.value)
         self.style.configure("Accent.TButton", 
                            font=Fonts.BODY.value,
                            padding=6,
@@ -391,33 +399,36 @@ class ItemEditorWindow:
         
         self.create_widgets()
     
+    def center_window(self):
+        """Centraliza a janela em relação à janela principal"""
+        self.window.update_idletasks()
+        width = self.window.winfo_width()
+        height = self.window.winfo_height()
+        
+        x = self.parent.winfo_x() + (self.parent.winfo_width() // 2) - (width // 2)
+        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (height // 2)
+        
+        self.window.geometry(f"+{x}+{y}")
+    
     def create_widgets(self) -> None:
-        """Cria os widgets da janela de edição"""
-        self.main_frame = ttk.Frame(self.window, padding=15)
-        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        """Cria os widgets da janela de edição de forma compacta"""
+        main_frame = ttk.Frame(self.window, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
         
-        canvas = tk.Canvas(self.main_frame, bg=ColorScheme.BACKGROUND.value, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.main_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # Frame para os campos de edição
+        edit_frame = ttk.Frame(main_frame)
+        edit_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
         self.entries = {}
         for i, col in enumerate(self.columns):
-            label = ttk.Label(scrollable_frame, text=f"{col}:")
-            label.grid(row=i, column=0, sticky=tk.W, padx=5, pady=5)
+            # Usando grid para layout mais compacto
+            label = ttk.Label(edit_frame, text=f"{col}:")
+            label.grid(row=i, column=0, sticky=tk.W, padx=2, pady=2)
             
-            entry = ttk.Entry(scrollable_frame)
-            entry.grid(row=i, column=1, sticky=tk.EW, padx=5, pady=5)
+            entry = ttk.Entry(edit_frame, width=25)  # Largura fixa para manter compacto
+            entry.grid(row=i, column=1, sticky=tk.EW, padx=2, pady=2)
             
+            # Preenche com o valor atual
             if isinstance(self.item_data[col], (float, int)):
                 entry.insert(0, locale.format_string('%.2f', self.item_data[col], grouping=True))
             else:
@@ -425,21 +436,21 @@ class ItemEditorWindow:
             
             self.entries[col] = entry
         
-        scrollable_frame.grid_columnconfigure(1, weight=1)
+        # Configura expansão das colunas
+        edit_frame.grid_columnconfigure(1, weight=1)
         
-        button_frame = ttk.Frame(self.main_frame)
-        button_frame.pack(fill=tk.X, pady=(10, 0))
+        # Frame para os botões (centralizados)
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
         
         save_btn = ttk.Button(
             button_frame, 
             text="Salvar", 
             command=self.save_changes,
-            style="Accent.TButton"
+            style="Accent.TButton",
+            width=10
         )
-        save_btn.pack(side=tk.RIGHT)
-        
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        save_btn.pack(pady=(5, 0))
     
     def save_changes(self) -> None:
         """Salva as alterações no item"""
