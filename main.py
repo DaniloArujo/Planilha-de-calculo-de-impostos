@@ -365,109 +365,6 @@ class ICMSEditorWindow:
         self.update_callback(self.state_icms_table)
         self.window.destroy()
 
-class ItemEditorWindow:
-    """Janela compacta para edição de um item específico"""
-    def __init__(self, parent, item_data: Dict[str, Union[str, float]], columns: List[str], update_callback):
-        self.parent = parent
-        self.item_data = item_data.copy()
-        self.columns = columns
-        self.update_callback = update_callback
-        
-        self.window = tk.Toplevel(parent)
-        self.window.title("Editar Item")
-        self.window.geometry("400x200")  # Tamanho menor e fixo
-        self.window.configure(bg=ColorScheme.BACKGROUND.value)
-        self.window.transient(parent)
-        self.window.grab_set()
-        
-        # Centraliza a janela
-        self.center_window()
-        
-        self.style = ttk.Style()
-        self.style.configure("TLabel", 
-                           font=Fonts.BODY.value, 
-                           background=ColorScheme.BACKGROUND.value)
-        self.style.configure("TEntry", 
-                           font=Fonts.BODY.value, 
-                           padding=5, 
-                           fieldbackground=ColorScheme.WHITE.value)
-        self.style.configure("Accent.TButton", 
-                           font=Fonts.BODY.value,
-                           padding=6,
-                           background=ColorScheme.ACCENT.value,
-                           foreground=ColorScheme.WHITE.value)
-        
-        self.create_widgets()
-    
-    def center_window(self):
-        """Centraliza a janela em relação à janela principal"""
-        self.window.update_idletasks()
-        width = self.window.winfo_width()
-        height = self.window.winfo_height()
-        
-        x = self.parent.winfo_x() + (self.parent.winfo_width() // 2) - (width // 2)
-        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (height // 2)
-        
-        self.window.geometry(f"+{x}+{y}")
-    
-    def create_widgets(self) -> None:
-        """Cria os widgets da janela de edição de forma compacta"""
-        main_frame = ttk.Frame(self.window, padding=10)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Frame para os campos de edição
-        edit_frame = ttk.Frame(main_frame)
-        edit_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        self.entries = {}
-        for i, col in enumerate(self.columns):
-            # Usando grid para layout mais compacto
-            label = ttk.Label(edit_frame, text=f"{col}:")
-            label.grid(row=i, column=0, sticky=tk.W, padx=2, pady=2)
-            
-            entry = ttk.Entry(edit_frame, width=25)  # Largura fixa para manter compacto
-            entry.grid(row=i, column=1, sticky=tk.EW, padx=2, pady=2)
-            
-            # Preenche com o valor atual
-            if isinstance(self.item_data[col], (float, int)):
-                entry.insert(0, locale.format_string('%.2f', self.item_data[col], grouping=True))
-            else:
-                entry.insert(0, str(self.item_data[col]))
-            
-            self.entries[col] = entry
-        
-        # Configura expansão das colunas
-        edit_frame.grid_columnconfigure(1, weight=1)
-        
-        # Frame para os botões (centralizados)
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X)
-        
-        save_btn = ttk.Button(
-            button_frame, 
-            text="Salvar", 
-            command=self.save_changes,
-            style="Accent.TButton",
-            width=10
-        )
-        save_btn.pack(pady=(5, 0))
-    
-    def save_changes(self) -> None:
-        """Salva as alterações no item"""
-        new_values = {}
-        for col, entry in self.entries.items():
-            try:
-                if col in ['Descrição', 'Estado de Destino', 'Item']:
-                    new_values[col] = entry.get()
-                else:
-                    value_str = entry.get().replace('.', '').replace(',', '.')
-                    new_values[col] = float(value_str)
-            except ValueError:
-                messagebox.showerror("Erro", f"Valor inválido para {col}")
-                return
-        
-        self.update_callback(new_values)
-        self.window.destroy()
 
 class MainView:
     """Classe principal da interface gráfica"""
@@ -573,6 +470,7 @@ class MainView:
         self.create_table_frame()
         self.create_status_bar()
         self.create_menu()
+        self.tree.bind('<Double-1>', self.controller.edit_cell)
         
         self.set_default_values()
     
@@ -708,34 +606,34 @@ class MainView:
         )
         
         column_widths = {
-            "Item": 50,
+            "Item": 60,
             "Descrição": 250,
-            "Valor Unitário de Custo (R$)": 150,
-            "Quantidade": 80,
-            "Valor Total de Custo (R$)": 150,
-            "Margem de Lucro Bruto (%)": 120,
-            "Valor Unitário de Venda (R$)": 150,
-            "Valor Total de Venda (R$)": 150,
-            "Estado de Destino": 100,
-            "ICMS (%)": 80,
-            "Valor unit. ICMS": 120,
-            "Valor Total ICMS (R$)": 120,
-            "PIS (%)": 80,
-            "Valor unit. PIS": 120,
-            "Valor Total PIS (R$)": 120,
-            "COFINS (%)": 80,
-            "Valor unit. COFINS": 120,
-            "Valor Total COFINS (R$)": 120,
-            "IRPJ (%)": 80,
-            "Valor unit. IRPJ": 120,
-            "Valor Total IRPJ (R$)": 120,
-            "CSLL (%)": 80,
-            "Valor unit. CSLL": 120,
-            "Valor Total CSLL (R$)": 120,
-            "Valor Total de impostos": 150,
-            "Valor Total Unitário": 150,
-            "Valor Total": 150,
-            "Total Alíquota Impostos (%)": 150
+            "Valor Unitário de Custo (R$)": 300,
+            "Quantidade": 150,
+            "Valor Total de Custo (R$)": 300,
+            "Margem de Lucro Bruto (%)": 300,
+            "Valor Unitário de Venda (R$)": 300,
+            "Valor Total de Venda (R$)": 300,
+            "Estado de Destino": 300,
+            "ICMS (%)": 300,
+            "Valor unit. ICMS": 300,
+            "Valor Total ICMS (R$)": 300,
+            "PIS (%)": 300,
+            "Valor unit. PIS": 300,
+            "Valor Total PIS (R$)": 300,
+            "COFINS (%)": 300,
+            "Valor unit. COFINS": 300,
+            "Valor Total COFINS (R$)": 300,
+            "IRPJ (%)": 300,
+            "Valor unit. IRPJ": 300,
+            "Valor Total IRPJ (R$)": 300,
+            "CSLL (%)": 300,
+            "Valor unit. CSLL": 300,
+            "Valor Total CSLL (R$)": 300,
+            "Valor Total de impostos": 300,
+            "Valor Total Unitário": 300,
+            "Valor Total": 300,
+            "Total Alíquota Impostos (%)": 300
         }
         
         for col in self.model.columns:
@@ -929,32 +827,79 @@ class Controller:
             self.view.input_widgets['icms'].insert(0, locale.format_string('%.2f', self.model.state_icms_table[state], grouping=True))
     
     def edit_cell(self, event) -> None:
-        """Abre a janela de edição para uma célula específica"""
+        """Permite edição direta na célula da tabela"""
+        # Identifica o item e coluna clicados
         item = self.view.tree.identify_row(event.y)
         column = self.view.tree.identify_column(event.x)
         
-        if not item or column == '#0':
+        if not item or column == '#0':  # Ignora cliques na coluna #0 (geralmente a coluna de índice)
             return
         
         col_name = self.model.columns[int(column[1:])-1]
         row_index = int(item)
+        
+        # Ignora colunas que não devem ser editáveis (como totais)
+        if 'total' in self.view.tree.item(item, 'tags'):
+            return
+        
+        # Obtém o valor atual
         current_value = self.model.data.at[row_index, col_name]
         
-        ItemEditorWindow(
-            self.view.root,
-            {col_name: current_value},
-            [col_name],
-            lambda new_values: self.save_edit(row_index, col_name, new_values[col_name], item)
-        )
-    
-    def save_edit(self, row_index: int, col_name: str, new_value: Union[str, float], item: str) -> None:
-        """Salva as alterações feitas na edição de uma célula"""
-        try:
-            self.model.update_item(row_index, col_name, new_value)
-            self.view.update_row_in_table(row_index, item)
-            self.view.status_bar.config(text="Item atualizado com sucesso!")
-        except ValueError as e:
-            messagebox.showerror("Erro", f"Valor inválido: {str(e)}")
+        # Define a célula como editável
+        self._create_inplace_editor(item, column, col_name, row_index, current_value)
+        
+    def _create_inplace_editor(self, item, column, col_name, row_index, current_value):
+        """Cria um widget de edição in-place na célula da tabela"""
+        # Obtém a posição e tamanho da célula
+        x, y, width, height = self.view.tree.bbox(item, column)
+        
+        # Formata o valor para exibição
+        if isinstance(current_value, (float, int)) and col_name != 'Item':
+            display_value = locale.format_string('%.2f', current_value, grouping=True)
+        else:
+            display_value = str(current_value)
+        
+        # Cria o widget de edição apropriado
+        if col_name == 'Estado de Destino':
+            entry = ttk.Combobox(self.view.tree, 
+                               values=self.model.state_icms_table.keys(),
+                               state="readonly")
+        else:
+            entry = ttk.Entry(self.view.tree)
+        
+        entry.place(x=x, y=y, width=width, height=height, anchor=tk.NW)
+        entry.insert(0, display_value)
+        entry.select_range(0, tk.END)
+        entry.focus()
+        
+        def save_edit():
+            try:
+                # Obtém o novo valor
+                new_value = entry.get()
+                
+                # Converte para o formato apropriado
+                if col_name in ['Descrição', 'Estado de Destino', 'Item']:
+                    pass  # Mantém como string
+                else:
+                    new_value = new_value.replace('.', '').replace(',', '.')
+                    new_value = float(new_value)
+                
+                # Atualiza o modelo
+                self.model.update_item(row_index, col_name, new_value)
+                
+                # Atualiza a exibição
+                self.view.update_row_in_table(row_index, item)
+                self.view.status_bar.config(text="Item atualizado com sucesso!")
+                
+            except ValueError as e:
+                messagebox.showerror("Erro", f"Valor inválido: {str(e)}")
+            finally:
+                entry.destroy()
+        
+        # Configura os eventos
+        entry.bind("<FocusOut>", lambda e: save_edit())
+        entry.bind("<Return>", lambda e: save_edit())
+        entry.bind("<Escape>", lambda e: entry.destroy())
     
     def edit_icms_table(self) -> None:
         """Abre a janela para edição da tabela de ICMS por estado"""
@@ -1099,6 +1044,7 @@ Atalhos:
 
 Versão: 1.0 BETA
 Desenvolvido por: Danilo Araujo Mota
+Contato: daniloaraujomota@gmail.com
 Data: 2025
 
 MIT License
@@ -1123,8 +1069,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Ferramenta para cálculo de custos, margens de lucro
-e impostos para produtos e serviços."""
+"""
         
         messagebox.showinfo("Sobre", about_text)
 
