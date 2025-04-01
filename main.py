@@ -636,10 +636,11 @@ class MainView:
         button_frame.grid(row=10, column=0, columnspan=4, pady=(15, 5), sticky=tk.EW)
         
         # Configurar pesos das colunas no frame de botões
-        button_frame.grid_columnconfigure(0, weight=1)
-        button_frame.grid_columnconfigure(1, weight=1)
-        button_frame.grid_columnconfigure(2, weight=1)
-        
+        button_frame.grid_columnconfigure(0, weight=1)  
+        button_frame.grid_columnconfigure(1, weight=0)  
+        button_frame.grid_columnconfigure(2, weight=0)  
+        button_frame.grid_columnconfigure(3, weight=1)  
+                
         # Botão para adicionar item
         add_btn = ttk.Button(
             button_frame, 
@@ -657,7 +658,8 @@ class MainView:
             style="TButton"
         )
         delete_btn.grid(row=0, column=2, padx=5, sticky=tk.EW)
-    
+
+
     def create_table_frame(self) -> None:
         """Cria o frame da tabela de dados"""
         self.table_frame = ttk.LabelFrame(
@@ -681,39 +683,42 @@ class MainView:
             style="Treeview"
         )
         
-        # Configurar colunas
+        # Configurar colunas com larguras iniciais
         column_widths = {
             "Item": 50,
-            "Descrição": 200,
-            "Valor Unitário de Custo (R$)": 120,
+            "Descrição": 250,
+            "Valor Unitário de Custo (R$)": 150,
             "Quantidade": 80,
-            "Valor Total de Custo (R$)": 120,
-            "Valor Unitário de Venda (R$)": 120,
-            "Estado de Destino": 80,
-            "ICMS (%)": 70,
-            "Valor unit. ICMS": 100,
+            "Valor Total de Custo (R$)": 150,
+            "Margem de Lucro Bruto (%)": 120,
+            "Valor Unitário de Venda (R$)": 150,
+            "Valor Total de Venda (R$)": 150,
+            "Estado de Destino": 100,
+            "ICMS (%)": 80,
+            "Valor unit. ICMS": 120,
             "Valor Total ICMS (R$)": 120,
-            "PIS (%)": 70,
-            "Valor unit. PIS": 100,
+            "PIS (%)": 80,
+            "Valor unit. PIS": 120,
             "Valor Total PIS (R$)": 120,
-            "COFINS (%)": 70,
-            "Valor unit. COFINS": 100,
+            "COFINS (%)": 80,
+            "Valor unit. COFINS": 120,
             "Valor Total COFINS (R$)": 120,
-            "IRPJ (%)": 70,
-            "Valor Unit. IRPJ": 100,
+            "IRPJ (%)": 80,
+            "Valor unit. IRPJ": 120,
             "Valor Total IRPJ (R$)": 120,
-            "CSLL (%)": 70,
-            "Valor Unit. CSLL": 100,
+            "CSLL (%)": 80,
+            "Valor unit. CSLL": 120,
             "Valor Total CSLL (R$)": 120,
-            "Valor Total de impostos": 120,
-            "Valor Total Unitário": 120,
-            "Valor Total": 120,
-            "Total Alíquota Impostos (%)": 120
+            "Valor Total de impostos": 150,
+            "Valor Total Unitário": 150,
+            "Valor Total": 150,
+            "Total Alíquota Impostos (%)": 150
         }
         
         for col in self.model.columns:
             self.tree.heading(col, text=col, anchor=tk.CENTER)
-            self.tree.column(col, width=column_widths.get(col, 100), anchor=tk.CENTER)
+            width = column_widths.get(col, 100)  # Default width 100 if not specified
+            self.tree.column(col, width=width, anchor=tk.CENTER, stretch=False)
         
         # Scrollbars
         vsb = ttk.Scrollbar(container, orient="vertical", command=self.tree.yview)
@@ -733,8 +738,36 @@ class MainView:
         self.tree.tag_configure('oddrow', background=ColorScheme.ROW_ODD.value)
         self.tree.tag_configure('total', background=ColorScheme.LIGHT_GRAY.value, font=Fonts.HEADER.value)
         
-        # Eventos
+        # Permitir redimensionamento manual de colunas
+        def handle_column_resize(event):
+            # Obter a coluna que está sendo redimensionada
+            column_id = self.tree.identify_column(event.x)
+            col_index = int(column_id[1:]) - 1
+            col_name = self.model.columns[col_index]
+            
+            # Obter a nova largura
+            bbox = self.tree.bbox(self.tree.identify_row(event.y), column_id)
+            if bbox:
+                new_width = max(20, event.x - bbox[0])  # Largura mínima de 20 pixels
+                
+                # Atualizar apenas a coluna sendo redimensionada
+                self.tree.column(col_name, width=new_width)
+        
+        # Vincular eventos de redimensionamento
+        self.tree.bind("<B1-Motion>", handle_column_resize)
+        self.tree.bind("<ButtonRelease-1>", lambda e: self.tree.config(cursor=""))
+        self.tree.bind("<Button-1>", self.start_column_resize)
+        
+        # Evento de edição
         self.tree.bind('<Double-1>', self.edit_cell)
+
+    def start_column_resize(self, event):
+        """Inicia o redimensionamento de coluna"""
+        region = self.tree.identify_region(event.x, event.y)
+        if region == "separator":
+            self.tree.config(cursor="sb_h_double_arrow")
+        else:
+            self.tree.config(cursor="")
     
     def create_status_bar(self) -> None:
         """Cria a barra de status"""
