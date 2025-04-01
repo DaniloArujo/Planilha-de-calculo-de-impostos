@@ -49,21 +49,16 @@ class TaxCalculator:
         
         # Cálculos de impostos
         taxes = {
-            'ICMS': tax_config.ICMS,
-            'PIS': tax_config.PIS,
-            'COFINS': tax_config.COFINS,
-            'IRPJ': tax_config.IRPJ,
-            'CSLL': tax_config.CSLL
+            'ICMS': row.get('ICMS (%)', tax_config.ICMS),
+            'PIS': row.get('PIS (%)', tax_config.PIS),
+            'COFINS': row.get('COFINS (%)', tax_config.COFINS),
+            'IRPJ': row.get('IRPJ (%)', tax_config.IRPJ),
+            'CSLL': row.get('CSLL (%)', tax_config.CSLL)
         }
         
         for tax_name, rate in taxes.items():
-            # Valor unitário do imposto
             calculations[f'Valor unit. {tax_name}'] = calculations['Valor Unitário de Venda (R$)'] * (rate/100)
-            
-            # Valor total do imposto
             calculations[f'Valor Total {tax_name} (R$)'] = calculations[f'Valor unit. {tax_name}'] * quantity
-            
-            # Porcentagem do imposto (já vem do tax_config)
             calculations[f'{tax_name} (%)'] = rate
         
         # Totais consolidados
@@ -97,7 +92,6 @@ class DataModel:
         self.tax_config = TaxConfig()
         self.next_item_number = 1
         
-        # Tabela de ICMS por estado
         self.state_icms_table = {
             "AC": 17, "AL": 18, "AP": 18, "AM": 20, "BA": 20.5, 
             "CE": 20, "DF": 20, "ES": 17, "GO": 17, "MA": 22, 
@@ -110,21 +104,16 @@ class DataModel:
     def add_item(self, item_data: Dict[str, Union[str, float]]) -> None:
         """Adiciona um novo item ao DataFrame com validação completa"""
         try:
-            # Garante que todos os campos numéricos sejam floats
             processed_data = {}
             for key, value in item_data.items():
                 if key in ['Descrição', 'Estado de Destino']:
                     processed_data[key] = str(value)
                 else:
                     if isinstance(value, str):
-                        try:
-                            processed_data[key] = float(value.replace('.', '').replace(',', '.'))
-                        except ValueError:
-                            processed_data[key] = 0.0
+                        processed_data[key] = float(value.replace('.', '').replace(',', '.'))
                     else:
                         processed_data[key] = float(value)
             
-            # Validações adicionais
             if processed_data['Valor Unitário de Custo (R$)'] <= 0:
                 raise ValueError("Valor unitário de custo deve ser positivo")
             if processed_data['Quantidade'] <= 0:
@@ -132,18 +121,12 @@ class DataModel:
             if not processed_data['Descrição']:
                 raise ValueError("Descrição do item é obrigatória")
             
-            # Realiza os cálculos
             tax_calculations = TaxCalculator.calculate_taxes(processed_data, self.tax_config)
             new_row = {**processed_data, **tax_calculations}
             new_row['Item'] = self.next_item_number
             
-            # Adiciona ao DataFrame 
             new_df = pd.DataFrame([new_row])
-            if self.data.empty:
-                self.data = new_df
-            else:
-                self.data = pd.concat([self.data, new_df], ignore_index=True)
-            
+            self.data = pd.concat([self.data, new_df], ignore_index=True)
             self.next_item_number += 1
             
         except Exception as e:
@@ -152,16 +135,14 @@ class DataModel:
     def update_item(self, index: int, column: str, new_value: Union[str, float]) -> None:
         """Atualiza um valor específico e recalcula os dependentes"""
         try:
-            # Converte strings para float quando necessário
             if column not in ['Descrição', 'Estado de Destino', 'Item']:
                 if isinstance(new_value, str):
                     new_value = float(new_value.replace('.', '').replace(',', '.'))
             
             self.data.at[index, column] = new_value
             
-            # Recalcula os valores dependentes se necessário
             if column in ['Valor Unitário de Custo (R$)', 'Quantidade', 'Margem de Lucro Bruto (%)', 
-                         'ICMS (%)', 'PIS (%)', 'COFINS (%)', 'IRPJ (%)', 'CSLL (%)']:
+                         'ICMS (%)', 'PIS (%)', 'COFINS (%)', 'IRPJ (%)', 'CSLL (%)', 'Estado de Destino']:
                 item_data = self.data.iloc[index].to_dict()
                 tax_calculations = TaxCalculator.calculate_taxes(item_data, self.tax_config)
                 
@@ -178,11 +159,9 @@ class DataModel:
         self.next_item_number = len(self.data) + 1
     
     def calculate_totals(self) -> Dict[str, float]:
-        """Calcula os totais apenas das colunas que fazem sentido somar"""
         if self.data.empty:
             return {}
         
-        # Colunas que devem ter totais calculados (valores monetários e quantidades)
         columns_to_sum = [
             "Valor Unitário de Custo (R$)", 
             "Quantidade",
@@ -197,25 +176,18 @@ class DataModel:
             "Valor Total"
         ]
         
-        # Filtra apenas as colunas que existem no DataFrame
         valid_columns = [col for col in columns_to_sum if col in self.data.columns]
-        
-        # Calcula os totais
         totals = self.data[valid_columns].sum().to_dict()
-        
-        # Adiciona campos não numéricos para exibição
         totals['Descrição'] = "TOTAL"
         totals['Item'] = ""
         
         return totals
     
     def clear_data(self) -> None:
-        """Limpa todos os dados"""
         self.data = pd.DataFrame(columns=self.columns)
         self.next_item_number = 1
     
     def load_from_file(self, filepath: str) -> None:
-        """Carrega dados de um arquivo"""
         try:
             if filepath.endswith('.xlsx'):
                 self.data = pd.read_excel(filepath)
@@ -224,7 +196,6 @@ class DataModel:
             else:
                 raise ValueError("Formato de arquivo não suportado")
             
-            # Garante que as colunas existam
             for col in self.columns:
                 if col not in self.data.columns:
                     self.data[col] = 0.0 if col not in ['Descrição', 'Estado de Destino', 'Item'] else ""
@@ -237,7 +208,6 @@ class DataModel:
             raise ValueError(f"Erro ao carregar arquivo: {str(e)}")
     
     def save_to_file(self, filepath: str) -> None:
-        """Salva dados em um arquivo"""
         try:
             if filepath.endswith('.xlsx'):
                 self.data.to_excel(filepath, index=False)
@@ -253,30 +223,27 @@ class DataModel:
 # ==================== VISUALIZAÇÃO ====================
 
 class ColorScheme(Enum):
-    """Esquema de cores profissional"""
-    PRIMARY = "#2c3e50"      # Azul escuro (cor principal)
-    SECONDARY = "#34495e"    # Azul médio
-    ACCENT = "#3498db"       # Azul claro (destaque)
-    BACKGROUND = "#ecf0f1"   # Cinza claro (fundo)
-    TEXT = "#2c3e50"         # Texto escuro
-    SUCCESS = "#27ae60"      # Verde
-    WARNING = "#f39c12"      # Amarelo/Laranja
-    ERROR = "#e74c3c"        # Vermelho
-    LIGHT_GRAY = "#bdc3c7"   # Cinza claro
-    WHITE = "#ffffff"        # Branco
-    HIGHLIGHT = "#2980b9"    # Azul para highlights
-    ROW_EVEN = "#f8f9fa"     # Cinza muito claro para linhas pares
-    ROW_ODD = "#ffffff"      # Branco para linhas ímpares
+    PRIMARY = "#2c3e50"
+    SECONDARY = "#34495e"
+    ACCENT = "#3498db"
+    BACKGROUND = "#ecf0f1"
+    TEXT = "#2c3e50"
+    SUCCESS = "#27ae60"
+    WARNING = "#f39c12"
+    ERROR = "#e74c3c"
+    LIGHT_GRAY = "#bdc3c7"
+    WHITE = "#ffffff"
+    HIGHLIGHT = "#2980b9"
+    ROW_EVEN = "#f8f9fa"
+    ROW_ODD = "#ffffff"
 
 class Fonts(Enum):
-    """Configurações de fontes"""
     TITLE = ("Segoe UI", 14, "bold")
     HEADER = ("Segoe UI", 12, "bold")
     BODY = ("Segoe UI", 10)
     SMALL = ("Segoe UI", 9)
 
 class ICMSEditorWindow:
-    """Janela para edição da tabela de ICMS por estado"""
     def __init__(self, parent, state_icms_table: Dict[str, float], update_callback):
         self.parent = parent
         self.state_icms_table = state_icms_table.copy()
@@ -294,7 +261,6 @@ class ICMSEditorWindow:
         self.populate_table()
     
     def configure_styles(self) -> None:
-        """Configura os estilos da janela"""
         self.style.configure("Treeview", 
                            font=Fonts.BODY.value,
                            rowheight=28,
@@ -315,7 +281,6 @@ class ICMSEditorWindow:
                            foreground=ColorScheme.WHITE.value)
     
     def create_widgets(self) -> None:
-        """Cria os widgets da janela"""
         self.main_frame = ttk.Frame(self.window, padding=15)
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
@@ -345,12 +310,10 @@ class ICMSEditorWindow:
         self.tree.bind('<Double-1>', self.edit_cell)
     
     def populate_table(self) -> None:
-        """Preenche a tabela com os valores atuais"""
         for estado, icms in sorted(self.state_icms_table.items()):
             self.tree.insert("", tk.END, values=(estado, f"{icms:.2f}"), iid=estado)
     
     def edit_cell(self, event) -> None:
-        """Permite editar o valor do ICMS para um estado"""
         item = self.tree.identify_row(event.y)
         column = self.tree.identify_column(event.x)
         
@@ -382,13 +345,10 @@ class ICMSEditorWindow:
         entry.bind("<Return>", lambda e: save_edit())
     
     def save_changes(self) -> None:
-        """Salva as alterações e fecha a janela"""
         self.update_callback(self.state_icms_table)
         self.window.destroy()
 
-
 class MainView:
-    """Classe principal da interface gráfica"""
     def __init__(self, root, model: DataModel, controller):
         self.root = root
         self.model = model
@@ -397,17 +357,14 @@ class MainView:
         self.setup_ui()
     
     def configure_styles(self) -> None:
-        """Configura os estilos da aplicação"""
         self.style = ttk.Style()
         self.style.theme_use('clam')
         
-        # Configuração geral
         self.style.configure(".", 
                            font=Fonts.BODY.value,
                            background=ColorScheme.BACKGROUND.value,
                            foreground=ColorScheme.TEXT.value)
         
-        # Configuração de botões
         self.style.configure("TButton", 
                            font=Fonts.BODY.value,
                            padding=6,
@@ -422,7 +379,6 @@ class MainView:
         self.style.map("Accent.TButton",
                      background=[('active', ColorScheme.HIGHLIGHT.value)])
         
-        # Configuração de labels
         self.style.configure("TLabel", font=Fonts.BODY.value)
         self.style.configure("Title.TLabel", 
                            font=Fonts.TITLE.value,
@@ -432,7 +388,6 @@ class MainView:
                            font=Fonts.HEADER.value,
                            foreground=ColorScheme.PRIMARY.value)
         
-        # Configuração de frames
         self.style.configure("TFrame", background=ColorScheme.BACKGROUND.value)
         self.style.configure("Header.TFrame", background=ColorScheme.PRIMARY.value)
         self.style.configure("TLabelframe", 
@@ -442,13 +397,11 @@ class MainView:
                            font=Fonts.HEADER.value,
                            foreground=ColorScheme.PRIMARY.value)
         
-        # Configuração de combobox
         self.style.configure("TCombobox", 
                            font=Fonts.BODY.value, 
                            padding=5,
                            fieldbackground=ColorScheme.WHITE.value)
         
-        # Configuração de treeview
         self.style.configure("Treeview", 
                            font=Fonts.BODY.value,
                            rowheight=28,
@@ -465,7 +418,6 @@ class MainView:
                       background=[('selected', ColorScheme.HIGHLIGHT.value)],
                       foreground=[('selected', ColorScheme.WHITE.value)])
         
-        # Configuração de status bar
         self.style.configure("Status.TLabel", 
                            font=Fonts.SMALL.value,
                            background=ColorScheme.SECONDARY.value,
@@ -474,9 +426,8 @@ class MainView:
                            relief=tk.SUNKEN)
     
     def setup_ui(self) -> None:
-        """Configura a interface do usuário"""
         self.root.title("Sistema de Cálculo de Custos e Impostos")
-        self.root.state('zoomed')  # Inicia maximizado
+        self.root.state('zoomed')
         self.root.configure(bg=ColorScheme.BACKGROUND.value)
         
         try:
@@ -496,7 +447,6 @@ class MainView:
         self.set_default_values()
     
     def create_header(self) -> None:
-        """Cria o cabeçalho da aplicação"""
         header_frame = ttk.Frame(self.root, style="Header.TFrame", padding=(15, 10, 15, 10))
         header_frame.pack(fill=tk.X)
         
@@ -509,9 +459,7 @@ class MainView:
         
         ttk.Frame(header_frame).pack(side=tk.LEFT, expand=True, fill=tk.X)
         
-       
     def create_input_frame(self) -> None:
-        """Cria o frame de entrada de dados com layout otimizado"""
         self.input_frame = ttk.LabelFrame(
             self.root, 
             text=" Adicionar Item ", 
@@ -520,12 +468,10 @@ class MainView:
         )
         self.input_frame.pack(fill=tk.X, padx=15, pady=(10, 5), ipady=5)
         
-        # Configuração do grid para melhor organização
         self.input_frame.grid_columnconfigure(1, weight=1)
         self.input_frame.grid_columnconfigure(3, weight=1)
-        self.input_frame.grid_columnconfigure(5, minsize=10)  # Espaçamento entre colunas
+        self.input_frame.grid_columnconfigure(5, minsize=10)
         
-        # Campos principais (esquerda)
         left_fields = [
             ("Descrição:", "description", 30),
             ("Valor Unitário de Custo (R$):", "unit_cost", 15),
@@ -534,7 +480,6 @@ class MainView:
             ("Estado de Destino:", "state", 5)
         ]
         
-        # Campos de impostos (direita)
         right_fields = [
             ("ICMS (%):", "icms", 10),
             ("PIS (%):", "pis", 10),
@@ -545,7 +490,6 @@ class MainView:
         
         self.input_widgets = {}
         
-        # Adiciona campos da esquerda
         for row, (label, name, width) in enumerate(left_fields):
             lbl = ttk.Label(self.input_frame, text=label)
             lbl.grid(row=row, column=0, sticky=tk.W, padx=5, pady=3)
@@ -562,7 +506,6 @@ class MainView:
             widget.grid(row=row, column=1, sticky=tk.EW, padx=5, pady=3)
             self.input_widgets[name] = widget
         
-        # Adiciona campos da direita
         for row, (label, name, width) in enumerate(right_fields):
             lbl = ttk.Label(self.input_frame, text=label)
             lbl.grid(row=row, column=3, sticky=tk.W, padx=(15,5), pady=3)
@@ -571,7 +514,6 @@ class MainView:
             widget.grid(row=row, column=4, sticky=tk.EW, padx=5, pady=3)
             self.input_widgets[name] = widget
         
-        # Frame para botões (ocupando toda a largura)
         button_frame = ttk.Frame(self.input_frame)
         button_frame.grid(row=5, column=0, columnspan=5, pady=(10, 0), sticky=tk.EW)
         
@@ -580,7 +522,6 @@ class MainView:
         button_frame.grid_columnconfigure(2, weight=0)
         button_frame.grid_columnconfigure(3, weight=1)
         
-        # Botões com espaçamento adequado
         add_btn = ttk.Button(
             button_frame, 
             text="Adicionar Item", 
@@ -598,7 +539,6 @@ class MainView:
         delete_btn.grid(row=0, column=2, padx=5, sticky=tk.EW)
 
     def create_table_frame(self) -> None:
-        """Cria o frame da tabela de dados"""
         self.table_frame = ttk.LabelFrame(
             self.root, 
             text=" Itens da Planilha ", 
@@ -685,7 +625,6 @@ class MainView:
         self.tree.bind('<Double-1>', self.controller.edit_cell)
 
     def start_column_resize(self, event):
-        """Inicia o redimensionamento de coluna"""
         region = self.tree.identify_region(event.x, event.y)
         if region == "separator":
             self.tree.config(cursor="sb_h_double_arrow")
@@ -693,7 +632,6 @@ class MainView:
             self.tree.config(cursor="")
     
     def create_status_bar(self) -> None:
-        """Cria a barra de status"""
         self.status_bar = ttk.Label(
             self.root, 
             text="Pronto", 
@@ -703,10 +641,8 @@ class MainView:
         self.status_bar.pack(fill=tk.X, padx=0, pady=0)
     
     def create_menu(self) -> None:
-        """Cria o menu principal"""
         menubar = tk.Menu(self.root, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
         
-        # Menu Arquivo
         file_menu = tk.Menu(menubar, tearoff=0, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
         file_menu.add_command(label="Novo", command=self.controller.new_file, accelerator="Ctrl+N")
         file_menu.add_command(label="Abrir", command=self.controller.open_file, accelerator="Ctrl+O")
@@ -716,19 +652,16 @@ class MainView:
         file_menu.add_command(label="Sair", command=self.root.quit, accelerator="Alt+F4")
         menubar.add_cascade(label="Arquivo", menu=file_menu)
         
-        # Menu Ações
         action_menu = tk.Menu(menubar, tearoff=0, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
         action_menu.add_command(label="Calcular Totais", command=self.controller.calculate_totals, accelerator="F9")
         action_menu.add_command(label="Limpar Planilha", command=self.controller.clear_spreadsheet)
         action_menu.add_command(label="Excluir Item Selecionado", command=self.controller.delete_selected, accelerator="Del")
         menubar.add_cascade(label="Ações", menu=action_menu)
         
-        # Menu Configurações
         config_menu = tk.Menu(menubar, tearoff=0, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
         config_menu.add_command(label="Editar Tabela de ICMS por Estado", command=self.controller.edit_icms_table)
         menubar.add_cascade(label="Configurações", menu=config_menu)
         
-        # Menu Ajuda
         help_menu = tk.Menu(menubar, tearoff=0, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
         help_menu.add_command(label="Sobre", command=self.controller.show_about)
         help_menu.add_command(label="Ajuda", command=self.controller.show_help)
@@ -736,7 +669,6 @@ class MainView:
         
         self.root.config(menu=menubar)
         
-        # Atalhos de teclado
         self.root.bind("<Control-n>", lambda e: self.controller.new_file())
         self.root.bind("<Control-o>", lambda e: self.controller.open_file())
         self.root.bind("<Control-s>", lambda e: self.controller.save_file())
@@ -744,7 +676,6 @@ class MainView:
         self.root.bind("<Delete>", lambda e: self.controller.delete_selected())
     
     def set_default_values(self) -> None:
-        """Define valores padrão para os campos de entrada"""
         self.input_widgets['unit_cost'].insert(0, "1,00")
         self.input_widgets['quantity'].insert(0, "1,00")
         self.input_widgets['profit_margin'].insert(0, "30,00")
@@ -756,7 +687,6 @@ class MainView:
         self.input_widgets['csll'].insert(0, locale.format_string('%.2f', self.model.tax_config.CSLL, grouping=True))
     
     def update_table(self) -> None:
-        """Atualiza a exibição da tabela com os dados atuais"""
         for item in self.tree.get_children():
             self.tree.delete(item)
         
@@ -778,7 +708,6 @@ class MainView:
             self.tree.insert("", tk.END, values=formatted_values, iid=str(index), tags=(tag,))
     
     def update_row_in_table(self, row_index: int, item: str) -> None:
-        """Atualiza uma linha específica na tabela"""
         formatted_values = []
         for col in self.model.columns:
             value = self.model.data.at[row_index, col]
@@ -794,16 +723,12 @@ class MainView:
         
         self.tree.item(item, values=formatted_values)
 
-# ==================== CONTROLE ====================
-
 class Controller:
-    """Classe controladora que coordena modelo e visualização"""
     def __init__(self, root):
         self.model = DataModel()
         self.view = MainView(root, self.model, self)
     
     def add_item(self) -> None:
-        """Adiciona um novo item com base nos campos de entrada"""
         try:
             item_data = {
                 'Descrição': self.view.input_widgets['description'].get(),
@@ -821,7 +746,6 @@ class Controller:
             self.model.add_item(item_data)
             self.view.update_table()
             
-            # Limpa os campos de entrada
             self.view.input_widgets['description'].delete(0, tk.END)
             self.view.input_widgets['unit_cost'].delete(0, tk.END)
             self.view.input_widgets['unit_cost'].insert(0, "1,00")
@@ -834,46 +758,35 @@ class Controller:
             messagebox.showerror("Erro", f"Não foi possível adicionar o item:\n{str(e)}")
     
     def update_icms_by_state(self, event=None) -> None:
-        """Atualiza o ICMS com base no estado selecionado"""
         state = self.view.input_widgets['state'].get()
         if state in self.model.state_icms_table:
             self.view.input_widgets['icms'].delete(0, tk.END)
             self.view.input_widgets['icms'].insert(0, locale.format_string('%.2f', self.model.state_icms_table[state], grouping=True))
     
     def edit_cell(self, event) -> None:
-        """Permite edição direta na célula da tabela"""
-        # Identifica o item e coluna clicados
         item = self.view.tree.identify_row(event.y)
         column = self.view.tree.identify_column(event.x)
         
-        if not item or column == '#0':  # Ignora cliques na coluna #0 (geralmente a coluna de índice)
+        if not item or column == '#0':
             return
         
         col_name = self.model.columns[int(column[1:])-1]
         row_index = int(item)
         
-        # Ignora colunas que não devem ser editáveis (como totais)
         if 'total' in self.view.tree.item(item, 'tags'):
             return
         
-        # Obtém o valor atual
         current_value = self.model.data.at[row_index, col_name]
-        
-        # Define a célula como editável
         self._create_inplace_editor(item, column, col_name, row_index, current_value)
         
     def _create_inplace_editor(self, item, column, col_name, row_index, current_value):
-        """Cria um widget de edição in-place na célula da tabela"""
-        # Obtém a posição e tamanho da célula
         x, y, width, height = self.view.tree.bbox(item, column)
         
-        # Formata o valor para exibição
         if isinstance(current_value, (float, int)) and col_name != 'Item':
             display_value = locale.format_string('%.2f', current_value, grouping=True)
         else:
             display_value = str(current_value)
         
-        # Cria o widget de edição apropriado
         if col_name == 'Estado de Destino':
             entry = ttk.Combobox(self.view.tree, 
                                values=self.model.state_icms_table.keys(),
@@ -888,20 +801,23 @@ class Controller:
         
         def save_edit():
             try:
-                # Obtém o novo valor
                 new_value = entry.get()
                 
-                # Converte para o formato apropriado
                 if col_name in ['Descrição', 'Estado de Destino', 'Item']:
-                    pass  # Mantém como string
+                    pass
                 else:
                     new_value = new_value.replace('.', '').replace(',', '.')
                     new_value = float(new_value)
                 
-                # Atualiza o modelo
+                # Atualiza o valor principal
                 self.model.update_item(row_index, col_name, new_value)
                 
-                # Atualiza a exibição
+                # Atualiza ICMS se for alteração de Estado
+                if col_name == 'Estado de Destino':
+                    new_state = new_value
+                    icms_rate = self.model.state_icms_table.get(new_state, self.model.tax_config.ICMS)
+                    self.model.update_item(row_index, 'ICMS (%)', icms_rate)
+                
                 self.view.update_row_in_table(row_index, item)
                 self.view.status_bar.config(text="Item atualizado com sucesso!")
                 
@@ -910,13 +826,11 @@ class Controller:
             finally:
                 entry.destroy()
         
-        # Configura os eventos
         entry.bind("<FocusOut>", lambda e: save_edit())
         entry.bind("<Return>", lambda e: save_edit())
         entry.bind("<Escape>", lambda e: entry.destroy())
     
     def edit_icms_table(self) -> None:
-        """Abre a janela para edição da tabela de ICMS por estado"""
         ICMSEditorWindow(
             self.view.root,
             self.model.state_icms_table,
@@ -924,12 +838,10 @@ class Controller:
         )
     
     def update_icms_table(self, new_table: Dict[str, float]) -> None:
-        """Atualiza a tabela de ICMS com os novos valores"""
         self.model.state_icms_table = new_table
         self.view.status_bar.config(text="Tabela de ICMS atualizada com sucesso!")
     
     def delete_selected(self) -> None:
-        """Exclui os itens selecionados"""
         selected_items = self.view.tree.selection()
         if not selected_items:
             messagebox.showwarning("Aviso", "Nenhum item selecionado para excluir")
@@ -942,11 +854,9 @@ class Controller:
             self.view.status_bar.config(text=f"{len(selected_items)} item(ns) excluído(s) com sucesso!")
     
     def calculate_totals(self) -> None:
-        """Calcula e exibe apenas os totais relevantes"""
         if not self.model.data.empty:
             totals = self.model.calculate_totals()
             
-            # Prepara os valores formatados para exibição
             formatted_values = []
             for col in self.model.columns:
                 value = totals.get(col, "")
@@ -960,12 +870,10 @@ class Controller:
                 else:
                     formatted_values.append(str(value))
             
-            # Remove totais anteriores se existirem
             for item in self.view.tree.get_children():
                 if 'total' in self.view.tree.item(item, 'tags'):
                     self.view.tree.delete(item)
             
-            # Adiciona a linha de totais
             self.view.tree.insert("", tk.END, values=formatted_values, tags=('total',))
             
             self.view.status_bar.config(text="Totais relevantes calculados com sucesso!")
@@ -973,7 +881,6 @@ class Controller:
             messagebox.showwarning("Aviso", "Não há dados para calcular totais.")
     
     def new_file(self) -> None:
-        """Cria um novo arquivo"""
         if not self.model.data.empty:
             if messagebox.askyesno("Novo Arquivo", "Deseja salvar as alterações antes de criar um novo arquivo?"):
                 self.save_file()
@@ -984,7 +891,6 @@ class Controller:
         self.view.status_bar.config(text="Novo arquivo criado.")
     
     def open_file(self) -> None:
-        """Abre um arquivo existente"""
         filepath = filedialog.askopenfilename(
             title="Abrir Arquivo",
             filetypes=[("Arquivos Excel", "*.xlsx"), ("Arquivos CSV", "*.csv"), ("Todos os arquivos", "*.*")],
@@ -1000,14 +906,12 @@ class Controller:
                 messagebox.showerror("Erro", f"Não foi possível abrir o arquivo.\nErro: {str(e)}")
     
     def save_file(self) -> None:
-        """Salva o arquivo atual"""
         if self.model.current_file:
             self.save_to_file(self.model.current_file)
         else:
             self.save_file_as()
     
     def save_file_as(self) -> None:
-        """Salva o arquivo com um novo nome"""
         filepath = filedialog.asksaveasfilename(
             title="Salvar Como",
             defaultextension=".xlsx",
@@ -1018,7 +922,6 @@ class Controller:
             self.save_to_file(filepath)
     
     def save_to_file(self, filepath: str) -> None:
-        """Salva os dados no arquivo especificado"""
         try:
             self.model.save_to_file(filepath)
             self.view.status_bar.config(text=f"Arquivo salvo: {os.path.basename(filepath)}")
@@ -1026,7 +929,6 @@ class Controller:
             messagebox.showerror("Erro", f"Não foi possível salvar o arquivo.\nErro: {str(e)}")
     
     def clear_spreadsheet(self) -> None:
-        """Limpa toda a planilha"""
         if self.model.data.empty:
             return
             
@@ -1037,9 +939,7 @@ class Controller:
             
     
     def show_help(self) -> None:
-        """Mostra uma janela de ajuda"""
         help_text = """Sistema de Cálculo de Custos e Impostos
-        
 
 Como usar:
 1. Preencha os campos no painel "Adicionar Item"
@@ -1058,7 +958,6 @@ Atalhos:
         messagebox.showinfo("Ajuda", help_text)
     
     def show_about(self) -> None:
-        """Mostra uma janela 'Sobre'"""
         about_text = """Sistema de Cálculo de Custos e Impostos
 
 Versão: 1.0 BETA
@@ -1091,8 +990,6 @@ SOFTWARE.
 """
         
         messagebox.showinfo("Sobre", about_text)
-
-# ==================== APLICAÇÃO PRINCIPAL ====================
 
 if __name__ == "__main__":
     root = tk.Tk()
