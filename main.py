@@ -178,14 +178,35 @@ class DataModel:
         self.next_item_number = len(self.data) + 1
     
     def calculate_totals(self) -> Dict[str, float]:
-        """Calcula os totais das colunas numéricas"""
+        """Calcula os totais apenas das colunas que fazem sentido somar"""
         if self.data.empty:
             return {}
         
-        numeric_cols = [col for col in self.data.columns if col not in ['Item', 'Descrição', 'Estado de Destino']]
-        totals = self.data[numeric_cols].sum().to_dict()
-        totals['Descrição'] = "TOTAIS"
+        # Colunas que devem ter totais calculados (valores monetários e quantidades)
+        columns_to_sum = [
+            "Valor Unitário de Custo (R$)", 
+            "Quantidade",
+            "Valor Total de Custo (R$)", 
+            "Valor Total de Venda (R$)",
+            "Valor Total ICMS (R$)",
+            "Valor Total PIS (R$)",
+            "Valor Total COFINS (R$)",
+            "Valor Total IRPJ (R$)",
+            "Valor Total CSLL (R$)",
+            "Valor Total de impostos",
+            "Valor Total"
+        ]
+        
+        # Filtra apenas as colunas que existem no DataFrame
+        valid_columns = [col for col in columns_to_sum if col in self.data.columns]
+        
+        # Calcula os totais
+        totals = self.data[valid_columns].sum().to_dict()
+        
+        # Adiciona campos não numéricos para exibição
+        totals['Descrição'] = "TOTAL"
         totals['Item'] = ""
+        
         return totals
     
     def clear_data(self) -> None:
@@ -488,15 +509,7 @@ class MainView:
         
         ttk.Frame(header_frame).pack(side=tk.LEFT, expand=True, fill=tk.X)
         
-        help_btn = ttk.Button(
-            header_frame,
-            text="Ajuda",
-            command=self.controller.show_help,
-            width=8,
-            style="Accent.TButton"
-        )
-        help_btn.pack(side=tk.RIGHT, padx=(0, 10))
-    
+       
     def create_input_frame(self) -> None:
         """Cria o frame de entrada de dados com layout otimizado"""
         self.input_frame = ttk.LabelFrame(
@@ -608,13 +621,13 @@ class MainView:
         column_widths = {
             "Item": 60,
             "Descrição": 250,
-            "Valor Unitário de Custo (R$)": 300,
-            "Quantidade": 150,
-            "Valor Total de Custo (R$)": 300,
+            "Valor Unitário de Custo (R$)": 250,
+            "Quantidade": 120,
+            "Valor Total de Custo (R$)": 260,
             "Margem de Lucro Bruto (%)": 300,
             "Valor Unitário de Venda (R$)": 300,
             "Valor Total de Venda (R$)": 300,
-            "Estado de Destino": 300,
+            "Estado de Destino": 200,
             "ICMS (%)": 300,
             "Valor unit. ICMS": 300,
             "Valor Total ICMS (R$)": 300,
@@ -718,7 +731,8 @@ class MainView:
         # Menu Ajuda
         help_menu = tk.Menu(menubar, tearoff=0, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
         help_menu.add_command(label="Sobre", command=self.controller.show_about)
-        menubar.add_cascade(label="Ajuda", menu=help_menu)
+        help_menu.add_command(label="Ajuda", command=self.controller.show_help)
+        menubar.add_cascade(label="Informações", menu=help_menu)
         
         self.root.config(menu=menubar)
         
@@ -928,28 +942,33 @@ class Controller:
             self.view.status_bar.config(text=f"{len(selected_items)} item(ns) excluído(s) com sucesso!")
     
     def calculate_totals(self) -> None:
-        """Calcula e exibe os totais"""
+        """Calcula e exibe apenas os totais relevantes"""
         if not self.model.data.empty:
             totals = self.model.calculate_totals()
             
-            formatted_totals = []
+            # Prepara os valores formatados para exibição
+            formatted_values = []
             for col in self.model.columns:
                 value = totals.get(col, "")
                 if pd.isna(value):
-                    formatted_totals.append("")
-                elif isinstance(value, (float, int)) and col != 'Item':
-                    formatted_totals.append(locale.format_string('%.2f', value, grouping=True))
+                    formatted_values.append("")
+                elif isinstance(value, (float, int)):
+                    if col == 'Item':
+                        formatted_values.append(str(int(value)) if value != "" else "")
+                    else:
+                        formatted_values.append(locale.format_string('%.2f', value, grouping=True) if value != "" else "")
                 else:
-                    formatted_totals.append(str(value))
+                    formatted_values.append(str(value))
             
             # Remove totais anteriores se existirem
             for item in self.view.tree.get_children():
                 if 'total' in self.view.tree.item(item, 'tags'):
                     self.view.tree.delete(item)
             
-            self.view.tree.insert("", tk.END, values=formatted_totals, tags=('total',))
+            # Adiciona a linha de totais
+            self.view.tree.insert("", tk.END, values=formatted_values, tags=('total',))
             
-            self.view.status_bar.config(text="Totais calculados com sucesso!")
+            self.view.status_bar.config(text="Totais relevantes calculados com sucesso!")
         else:
             messagebox.showwarning("Aviso", "Não há dados para calcular totais.")
     
