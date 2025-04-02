@@ -234,7 +234,7 @@ class ColorScheme(Enum):
     LIGHT_GRAY = "#bdc3c7"
     WHITE = "#ffffff"
     HIGHLIGHT = "#2980b9"
-    ROW_EVEN = "#f8f9fa"
+    ROW_EVEN = "#CBD8DE"
     ROW_ODD = "#ffffff"
 
 class Fonts(Enum):
