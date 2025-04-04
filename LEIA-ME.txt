@@ -1,0 +1,113 @@
+Sistema de Cálculo de Custos e Impostos
+
+1. Visão Geral do Sistema
+Objetivo: Aplicação desktop para cálculo automatizado de custos, margens de lucro e impostos (ICMS, PIS, COFINS, IRPJ, CSLL) com interface gráfica intuitiva.
+
+Arquitetura: MVC (Model-View-Controller)
+Tecnologias: Python 3.8+, Tkinter, Pandas
+Compatibilidade: Windows, Linux, macOS
+
+
+2. Diagrama de Arquitetura
+
+    graph TD
+
+        A[View] -->|Eventos| B[Controller]
+        B -->|Comandos| C[Model]
+        C -->|Dados| B
+        B -->|Atualizações| A
+
+
+3. Especificações Técnicas Detalhadas
+
+    3.1 Módulo Model
+
+        DataModel (data_model.py)
+            Responsabilidade: 
+                Gerenciamento central de dados e regras de negócio
+
+            Atributos:
+                columns: List[str] # Colunas da planilha
+                data: pd.DataFrame # Dados dos itens
+                tax_config: TaxConfig # Configurações de impostos
+                state_icms_table: Dict[str, float] # Tabela de ICMS por estado
+
+        TaxCalculator (tax_calculator.py) 
+            Responsabilidade:
+                Calcula 5 tipos de impostos com base nos valores de entrada
+        
+
+    3.2 Módulo View
+
+        MainView: Interface principal com tabela editável
+
+        ICMSEditorWindow: Editor da tabela de ICMS por estado
+            Hierarquia de Widgets:
+                MainWindow
+                ├── HeaderFrame
+                ├── InputFrame (Formulário)
+                ├── TableFrame (Treeview com scrollbars)
+                └── StatusBar
+
+    3.3 Módulo Controller
+
+        Fluxo Principal:
+
+            Recebe eventos da View
+            Valida entradas
+            Executa métodos do Model
+            Atualiza View com novos dados
+
+4. Diagramas de Sequência
+
+    4.1 Adição de Item
+
+            User->>View: Preenche formulário
+            View->>Controller: add_item()
+            Controller->>Model: valida_dados()
+            Model->>TaxCalculator: calculate_taxes()
+            TaxCalculator-->>Model: dados calculados
+            Model-->>Controller: confirmação
+            Controller->>View: update_table()
+
+
+5. Especificação de Dados
+
+    5.1 Estrutura do DataFrame
+
+        Coluna	                                        Tipo	                Descrição
+        Valor Unitário de Custo (R$)	                float	                Formato: 999999.99
+        ICMS (%)	                                float	                0-100 com 2 decimais
+        Estado de Destino	                        string	                Sigla de 2 caracteres
+
+    5.2 Arquivos
+        Formato Suportado:
+
+            Entrada/Saída: .xlsx, .csv
+            Estrutura esperada: 28 colunas conforme DataModel.columns
+
+
+6. Padrões de Código
+
+    6.1 Convenções
+
+        Tipagem estática com typing
+        Docstrings no formato Google Style
+        Nomes em português para regras de negócio
+        Constantes em classes Enum
+
+7. Manual de Manutenção
+
+    7.1 Adicionar Novo Imposto
+
+        Adicionar constante em TaxConfig
+        Implementar cálculo em TaxCalculator
+        Atualizar colunas em DataModel.columns
+        Adicionar campo no formulário da View
+
+
+8. Referências
+
+    Documentação Tkinter: https://docs.python.org/3/library/tk.html
+
+    Padrões PEP-8: https://peps.python.org/pep-0008/
