@@ -113,7 +113,9 @@ class DataModel:
                         processed_data[key] = float(value.replace('.', '').replace(',', '.'))
                     else:
                         processed_data[key] = float(value)
-            
+        
+            if processed_data['Estado de Destino'] not in self.state_icms_table:
+                raise ValueError("Estado inválido")
             if processed_data['Valor Unitário de Custo (R$)'] <= 0:
                 raise ValueError("Valor unitário de custo deve ser positivo")
             if processed_data['Quantidade'] <= 0:
@@ -159,6 +161,7 @@ class DataModel:
         self.next_item_number = len(self.data) + 1
     
     def calculate_totals(self) -> Dict[str, float]:
+        """Calcula os totais consolidados automaticamente"""
         if self.data.empty:
             return {}
         
@@ -188,37 +191,57 @@ class DataModel:
         self.next_item_number = 1
     
     def load_from_file(self, filepath: str) -> None:
+        """Carrega dados removendo totais existentes do arquivo"""
         try:
             if filepath.endswith('.xlsx'):
-                self.data = pd.read_excel(filepath)
+                df = pd.read_excel(filepath)
             elif filepath.endswith('.csv'):
-                self.data = pd.read_csv(filepath)
+                df = pd.read_csv(filepath)
             else:
                 raise ValueError("Formato de arquivo não suportado")
             
-            for col in self.columns:
-                if col not in self.data.columns:
-                    self.data[col] = 0.0 if col not in ['Descrição', 'Estado de Destino', 'Item'] else ""
+            # Remove linha de totais se existir
+            if not df.empty and df.iloc[-1]['Descrição'] == "TOTAL":
+                df = df.iloc[:-1]  # Remove última linha
             
+            # Garante todas as colunas necessárias
+            for col in self.columns:
+                if col not in df.columns:
+                    df[col] = 0.0 if col not in ['Descrição', 'Estado de Destino', 'Item'] else ""
+            
+            self.data = df
             if not self.data.empty:
                 self.next_item_number = self.data['Item'].max() + 1
+            else:
+                self.next_item_number = 1
             
             self.current_file = filepath
         except Exception as e:
-            raise ValueError(f"Erro ao carregar arquivo: {str(e)}")
+            raise ValueError(f"Erro ao carregar arquivo: {str(e)}")   
     
     def save_to_file(self, filepath: str) -> None:
+        """Salva os dados incluindo os totais como última linha"""
         try:
+            # Cria uma cópia dos dados para adicionar os totais
+            data_to_save = self.data.copy()
+            totals = self.calculate_totals()
+            
+            if totals:
+                totals_df = pd.DataFrame([totals])
+                data_to_save = pd.concat([data_to_save, totals_df], ignore_index=True)
+            
             if filepath.endswith('.xlsx'):
-                self.data.to_excel(filepath, index=False)
+                data_to_save.to_excel(filepath, index=False)
             elif filepath.endswith('.csv'):
-                self.data.to_csv(filepath, index=False)
+                data_to_save.to_csv(filepath, index=False)
             else:
                 raise ValueError("Formato de arquivo não suportado")
             
             self.current_file = filepath
         except Exception as e:
             raise ValueError(f"Erro ao salvar arquivo: {str(e)}")
+
+   
 
 # ==================== VISUALIZAÇÃO ====================
 
@@ -643,7 +666,7 @@ class MainView:
     def create_menu(self) -> None:
         menubar = tk.Menu(self.root, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
         
-        file_menu = tk.Menu(menubar, tearoff=0, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
+        file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Novo", command=self.controller.new_file, accelerator="Ctrl+N")
         file_menu.add_command(label="Abrir", command=self.controller.open_file, accelerator="Ctrl+O")
         file_menu.add_command(label="Salvar", command=self.controller.save_file, accelerator="Ctrl+S")
@@ -652,17 +675,17 @@ class MainView:
         file_menu.add_command(label="Sair", command=self.root.quit, accelerator="Alt+F4")
         menubar.add_cascade(label="Arquivo", menu=file_menu)
         
-        action_menu = tk.Menu(menubar, tearoff=0, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
-        action_menu.add_command(label="Calcular Totais", command=self.controller.calculate_totals, accelerator="F9")
+        action_menu = tk.Menu(menubar, tearoff=0)
+        # Removido o item "Calcular Totais"
         action_menu.add_command(label="Limpar Planilha", command=self.controller.clear_spreadsheet)
         action_menu.add_command(label="Excluir Item Selecionado", command=self.controller.delete_selected, accelerator="Del")
         menubar.add_cascade(label="Ações", menu=action_menu)
         
-        config_menu = tk.Menu(menubar, tearoff=0, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
+        config_menu = tk.Menu(menubar, tearoff=0)
         config_menu.add_command(label="Editar Tabela de ICMS por Estado", command=self.controller.edit_icms_table)
         menubar.add_cascade(label="Configurações", menu=config_menu)
         
-        help_menu = tk.Menu(menubar, tearoff=0, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
+        help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="Sobre", command=self.controller.show_about)
         help_menu.add_command(label="Ajuda", command=self.controller.show_help)
         menubar.add_cascade(label="Informações", menu=help_menu)
@@ -672,7 +695,6 @@ class MainView:
         self.root.bind("<Control-n>", lambda e: self.controller.new_file())
         self.root.bind("<Control-o>", lambda e: self.controller.open_file())
         self.root.bind("<Control-s>", lambda e: self.controller.save_file())
-        self.root.bind("<F9>", lambda e: self.controller.calculate_totals())
         self.root.bind("<Delete>", lambda e: self.controller.delete_selected())
     
     def set_default_values(self) -> None:
@@ -687,9 +709,11 @@ class MainView:
         self.input_widgets['csll'].insert(0, locale.format_string('%.2f', self.model.tax_config.CSLL, grouping=True))
     
     def update_table(self) -> None:
+        # Limpa a tabela existente
         for item in self.tree.get_children():
             self.tree.delete(item)
         
+        # Adiciona os itens normais
         for index, row in self.model.data.iterrows():
             formatted_values = []
             for col in self.model.columns:
@@ -706,6 +730,24 @@ class MainView:
             
             tag = 'evenrow' if index % 2 == 0 else 'oddrow'
             self.tree.insert("", tk.END, values=formatted_values, iid=str(index), tags=(tag,))
+        
+        # Adiciona linha de totais automaticamente
+        totals = self.model.calculate_totals()
+        if totals:
+            formatted_totals = []
+            for col in self.model.columns:
+                value = totals.get(col, "")
+                if pd.isna(value):
+                    formatted_totals.append("")
+                elif isinstance(value, (float, int)):
+                    if col == 'Item':
+                        formatted_totals.append("TOTAL")
+                    else:
+                        formatted_totals.append(locale.format_string('%.2f', value, grouping=True))
+                else:
+                    formatted_totals.append(str(value))
+            
+            self.tree.insert("", tk.END, values=formatted_totals, tags=('total',))
     
     def update_row_in_table(self, row_index: int, item: str) -> None:
         formatted_values = []
@@ -767,16 +809,18 @@ class Controller:
         item = self.view.tree.identify_row(event.y)
         column = self.view.tree.identify_column(event.x)
         
+        # Bloqueia edição na linha de totais
+        if 'total' in self.view.tree.item(item, 'tags'):
+            return
+        
         if not item or column == '#0':
             return
         
         col_name = self.model.columns[int(column[1:])-1]
         row_index = int(item)
-        
-        if 'total' in self.view.tree.item(item, 'tags'):
-            return
-        
         current_value = self.model.data.at[row_index, col_name]
+        
+        # Criação do editor inplace
         self._create_inplace_editor(item, column, col_name, row_index, current_value)
         
     def _create_inplace_editor(self, item, column, col_name, row_index, current_value):
@@ -850,35 +894,9 @@ class Controller:
         if messagebox.askyesno("Confirmar", f"Deseja excluir {len(selected_items)} item(ns)?"):
             indices = [int(item) for item in selected_items]
             self.model.delete_items(indices)
-            self.view.update_table()
+            self.view.update_table()  # This triggers automatic total update
             self.view.status_bar.config(text=f"{len(selected_items)} item(ns) excluído(s) com sucesso!")
     
-    def calculate_totals(self) -> None:
-        if not self.model.data.empty:
-            totals = self.model.calculate_totals()
-            
-            formatted_values = []
-            for col in self.model.columns:
-                value = totals.get(col, "")
-                if pd.isna(value):
-                    formatted_values.append("")
-                elif isinstance(value, (float, int)):
-                    if col == 'Item':
-                        formatted_values.append(str(int(value)) if value != "" else "")
-                    else:
-                        formatted_values.append(locale.format_string('%.2f', value, grouping=True) if value != "" else "")
-                else:
-                    formatted_values.append(str(value))
-            
-            for item in self.view.tree.get_children():
-                if 'total' in self.view.tree.item(item, 'tags'):
-                    self.view.tree.delete(item)
-            
-            self.view.tree.insert("", tk.END, values=formatted_values, tags=('total',))
-            
-            self.view.status_bar.config(text="Totais relevantes calculados com sucesso!")
-        else:
-            messagebox.showwarning("Aviso", "Não há dados para calcular totais.")
     
     def new_file(self) -> None:
         if not self.model.data.empty:
