@@ -179,13 +179,25 @@ class DataModel:
             "Valor Total"
         ]
         
+        # Garantir que todas as colunas existem no DataFrame
         valid_columns = [col for col in columns_to_sum if col in self.data.columns]
-        totals = self.data[valid_columns].sum().to_dict()
+        
+        # Calcular totais com tratamento para dados ausentes
+        totals = self.data[valid_columns].apply(lambda x: pd.to_numeric(x, errors='coerce')).sum().to_dict()
+        
+        # Adicionar campos não numéricos
         totals['Descrição'] = "TOTAL"
         totals['Item'] = ""
+        totals['Estado de Destino'] = ""
+        totals['Margem de Lucro Bruto (%)'] = ""
+        
+        # Garantir todas as colunas necessárias
+        for col in self.columns:
+            if col not in totals:
+                totals[col] = ""
         
         return totals
-    
+
     def clear_data(self) -> None:
         self.data = pd.DataFrame(columns=self.columns)
         self.next_item_number = 1
@@ -737,17 +749,22 @@ class MainView:
             formatted_totals = []
             for col in self.model.columns:
                 value = totals.get(col, "")
-                if pd.isna(value):
-                    formatted_totals.append("")
+                
+                # Formatação especial para totais
+                if col in ["Valor Total de Custo (R$)", "Valor Total de Venda (R$)", 
+                        "Valor Total ICMS (R$)", "Valor Total PIS (R$)", 
+                        "Valor Total COFINS (R$)", "Valor Total IRPJ (R$)", 
+                        "Valor Total CSLL (R$)", "Valor Total de impostos", 
+                        "Valor Total"]:
+                    formatted_value = locale.currency(value, grouping=True, symbol=False) if value else ""
                 elif isinstance(value, (float, int)):
-                    if col == 'Item':
-                        formatted_totals.append("TOTAL")
-                    else:
-                        formatted_totals.append(locale.format_string('%.2f', value, grouping=True))
+                    formatted_value = locale.format_string('%.2f', value, grouping=True)
                 else:
-                    formatted_totals.append(str(value))
+                    formatted_value = str(value)
+                
+                formatted_totals.append(formatted_value)
             
-            self.tree.insert("", tk.END, values=formatted_totals, tags=('total',))
+        self.tree.insert("", tk.END, values=formatted_totals, tags=('total',))
     
     def update_row_in_table(self, row_index: int, item: str) -> None:
         formatted_values = []
@@ -809,7 +826,7 @@ class Controller:
         item = self.view.tree.identify_row(event.y)
         column = self.view.tree.identify_column(event.x)
         
-        # Bloqueia edição na linha de totais
+        # Block editing for totals row
         if 'total' in self.view.tree.item(item, 'tags'):
             return
         
@@ -817,63 +834,86 @@ class Controller:
             return
         
         col_name = self.model.columns[int(column[1:])-1]
-        row_index = int(item)
-        current_value = self.model.data.at[row_index, col_name]
         
-        # Criação do editor inplace
+        # Prevent editing the 'Item' column
+        if col_name == 'Item':
+            return
+        
+        try:
+            row_index = int(item)
+        except ValueError:
+            return  # Invalid item (e.g., totals row)
+        
+        try:
+            current_value = self.model.data.at[row_index, col_name]
+        except KeyError:
+            return  # Invalid column name
+        
+        # Create inplace editor
         self._create_inplace_editor(item, column, col_name, row_index, current_value)
         
-    def _create_inplace_editor(self, item, column, col_name, row_index, current_value):
-        x, y, width, height = self.view.tree.bbox(item, column)
         
+    def _create_inplace_editor(self, item, column, col_name, row_index, current_value):
+        # Obtém as coordenadas da célula
+        bbox = self.view.tree.bbox(item, column)
+        if not bbox:
+            return  # Célula não está visível
+        
+        x, y, width, height = bbox
+
+        # Obtém o container pai da Treeview (onde as scrollbars estão)
+        container = self.view.tree.master
+
+        # Cria o editor no container pai
+        if col_name == 'Estado de Destino':
+            entry = ttk.Combobox(
+                container,
+                values=self.model.state_icms_table.keys(),
+                state="readonly"
+            )
+        else:
+            entry = ttk.Entry(container)
+
+        entry.place(x=x, y=y, width=width, height=height)
+
+        # Configura valor inicial e foco
         if isinstance(current_value, (float, int)) and col_name != 'Item':
             display_value = locale.format_string('%.2f', current_value, grouping=True)
         else:
             display_value = str(current_value)
         
-        if col_name == 'Estado de Destino':
-            entry = ttk.Combobox(self.view.tree, 
-                               values=self.model.state_icms_table.keys(),
-                               state="readonly")
-        else:
-            entry = ttk.Entry(self.view.tree)
-        
-        entry.place(x=x, y=y, width=width, height=height, anchor=tk.NW)
         entry.insert(0, display_value)
         entry.select_range(0, tk.END)
         entry.focus()
-        
+
         def save_edit():
             try:
                 new_value = entry.get()
                 
                 if col_name in ['Descrição', 'Estado de Destino', 'Item']:
-                    pass
+                    pass  # Keep as string
                 else:
                     new_value = new_value.replace('.', '').replace(',', '.')
                     new_value = float(new_value)
                 
-                # Atualiza o valor principal
                 self.model.update_item(row_index, col_name, new_value)
                 
-                # Atualiza ICMS se for alteração de Estado
                 if col_name == 'Estado de Destino':
                     new_state = new_value
                     icms_rate = self.model.state_icms_table.get(new_state, self.model.tax_config.ICMS)
                     self.model.update_item(row_index, 'ICMS (%)', icms_rate)
                 
-                self.view.update_row_in_table(row_index, item)
+                self.view.update_table()
                 self.view.status_bar.config(text="Item atualizado com sucesso!")
                 
             except ValueError as e:
                 messagebox.showerror("Erro", f"Valor inválido: {str(e)}")
             finally:
                 entry.destroy()
-        
+
         entry.bind("<FocusOut>", lambda e: save_edit())
         entry.bind("<Return>", lambda e: save_edit())
-        entry.bind("<Escape>", lambda e: entry.destroy())
-    
+
     def edit_icms_table(self) -> None:
         ICMSEditorWindow(
             self.view.root,
