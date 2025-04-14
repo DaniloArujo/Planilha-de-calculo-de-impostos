@@ -24,9 +24,9 @@ configure_locale()
 @dataclass
 class TaxConfig:
     """Configurações de impostos padrão"""
-    ICMS: float = 18.0
-    PIS: float = 1.65
-    COFINS: float = 7.6
+    ICMS: float = 20.0
+    PIS: float = 0.65
+    COFINS: float = 3
     IRPJ: float = 1.2
     CSLL: float = 1.08
 
@@ -596,10 +596,10 @@ class MainView:
         column_widths = {
             "Item": 60,
             "Descrição": 250,
-            "Valor Unitário de Custo (R$)": 250,
-            "Quantidade": 120,
-            "Valor Total de Custo (R$)": 260,
-            "Margem de Lucro Bruto (%)": 300,
+            "Valor Unitário de Custo (R$)": 230,
+            "Quantidade": 100,
+            "Valor Total de Custo (R$)": 210,
+            "Margem de Lucro Bruto (%)": 310,
             "Valor Unitário de Venda (R$)": 300,
             "Valor Total de Venda (R$)": 300,
             "Estado de Destino": 200,
@@ -712,7 +712,7 @@ class MainView:
     def set_default_values(self) -> None:
         self.input_widgets['unit_cost'].insert(0, "1,00")
         self.input_widgets['quantity'].insert(0, "1,00")
-        self.input_widgets['profit_margin'].insert(0, "30,00")
+        self.input_widgets['profit_margin'].insert(0, "0,00")
         self.input_widgets['state'].set("SP")
         self.input_widgets['icms'].insert(0, locale.format_string('%.2f', self.model.tax_config.ICMS, grouping=True))
         self.input_widgets['pis'].insert(0, locale.format_string('%.2f', self.model.tax_config.PIS, grouping=True))
