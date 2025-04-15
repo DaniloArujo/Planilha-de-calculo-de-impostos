@@ -482,7 +482,8 @@ class MainView:
                            background=ColorScheme.HEADER_BG.value,
                            foreground=ColorScheme.WHITE.value,
                            relief="flat",
-                           padding=8)
+                           padding=20,
+                           )
         self.style.map("Treeview",
                       background=[('selected', ColorScheme.HIGHLIGHT.value)],
                       foreground=[('selected', ColorScheme.WHITE.value)])
