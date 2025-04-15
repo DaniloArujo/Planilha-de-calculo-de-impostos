@@ -274,8 +274,8 @@ class ColorScheme(Enum):
 
 class Fonts(Enum):
     TITLE = ("Segoe UI", 16, "bold")
-    HEADER = ("Segoe UI", 12, "bold")
-    BODY = ("Segoe UI", 10)
+    HEADER = ("Segoe UI", 8, "bold")
+    BODY = ("Segoe UI", 9)
     SMALL = ("Segoe UI", 9)
     BUTTON = ("Segoe UI", 10, "bold")
 
@@ -439,7 +439,7 @@ class MainView:
                            font=Fonts.TITLE.value,
                            foreground=ColorScheme.WHITE.value,
                            background=ColorScheme.PRIMARY.value,
-                           padding=10)
+                           padding=5)
         self.style.configure("Subtitle.TLabel",
                            font=Fonts.HEADER.value,
                            foreground=ColorScheme.PRIMARY.value)
@@ -500,7 +500,7 @@ class MainView:
         self.style.configure("TEntry", padding=6)
     
     def setup_ui(self) -> None:
-        self.root.title("Sistema de precificação")
+        self.root.title("Sistema de precificação - venda")
         self.root.state('zoomed')
         self.root.configure(bg=ColorScheme.BACKGROUND.value)
         
@@ -526,7 +526,7 @@ class MainView:
         
         title_label = ttk.Label(
             header_frame, 
-            text="Sistema de precificação", 
+            text="Sistema de precificação - venda", 
             style="Title.TLabel"
         )
         title_label.pack(side=tk.LEFT, padx=10)
@@ -650,34 +650,34 @@ class MainView:
         
         # Definir larguras das colunas
         column_widths = {
-            "Item": 60,
-            "Descrição": 250,
-            "Valor Unitário de Custo (R$)": 150,
-            "Quantidade": 80,
-            "Valor Total de Custo (R$)": 150,
-            "Margem de Lucro Bruto (%)": 120,
-            "Valor Unitário de Venda (R$)": 150,
-            "Valor Total de Venda (R$)": 150,
-            "Estado de Destino": 80,
-            "ICMS (%)": 80,
-            "Valor unit. ICMS": 120,
-            "Valor Total ICMS (R$)": 120,
-            "PIS (%)": 80,
+            "Item": 80,
+            "Descrição": 300,
+            "Valor Unitário de Custo (R$)": 200,
+            "Quantidade": 120,
+            "Valor Total de Custo (R$)": 190,
+            "Margem de Lucro Bruto (%)": 190,
+            "Valor Unitário de Venda (R$)": 200,
+            "Valor Total de Venda (R$)": 190,
+            "Estado de Destino": 140,
+            "ICMS (%)": 100,
+            "Valor unit. ICMS": 140,
+            "Valor Total ICMS (R$)": 160,
+            "PIS (%)": 100,
             "Valor unit. PIS": 120,
             "Valor Total PIS (R$)": 120,
-            "COFINS (%)": 80,
-            "Valor unit. COFINS": 120,
-            "Valor Total COFINS (R$)": 120,
-            "IRPJ (%)": 80,
+            "COFINS (%)": 110,
+            "Valor unit. COFINS": 150,
+            "Valor Total COFINS (R$)": 170,
+            "IRPJ (%)": 100,
             "Valor unit. IRPJ": 120,
-            "Valor Total IRPJ (R$)": 120,
-            "CSLL (%)": 80,
+            "Valor Total IRPJ (R$)": 150,
+            "CSLL (%)": 100,
             "Valor unit. CSLL": 120,
-            "Valor Total CSLL (R$)": 120,
-            "Valor Total de impostos": 150,
+            "Valor Total CSLL (R$)": 170,
+            "Valor Total de impostos": 170,
             "Valor Total Unitário": 150,
-            "Valor Total": 150,
-            "Total Alíquota Impostos (%)": 150
+            "Valor Total": 100,
+            "Total Alíquota Impostos (%)": 200
         }
         
         # Configurar cabeçalhos e colunas
@@ -1063,7 +1063,7 @@ class Controller:
             self.view.status_bar.config(text="Planilha limpa.")
     
     def show_help(self) -> None:
-        help_text = """Sistema de precificação
+        help_text = """Sistema de precificação - venda
 
 Como usar:
 1. Preencha os campos no painel "Adicionar Item"
@@ -1082,7 +1082,7 @@ Atalhos:
         messagebox.showinfo("Ajuda", help_text)
     
     def show_about(self) -> None:
-        about_text = """Sistema de precificação
+        about_text = """Sistema de precificação - venda
 
 Versão: 2.0 BETA
 Desenvolvido por: Danilo Araujo Mota
