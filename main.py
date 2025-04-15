@@ -253,30 +253,31 @@ class DataModel:
         except Exception as e:
             raise ValueError(f"Erro ao salvar arquivo: {str(e)}")
 
-   
-
 # ==================== VISUALIZAÇÃO ====================
 
 class ColorScheme(Enum):
-    PRIMARY = "#2c3e50"
-    SECONDARY = "#34495e"
-    ACCENT = "#3498db"
-    BACKGROUND = "#ecf0f1"
-    TEXT = "#2c3e50"
-    SUCCESS = "#27ae60"
-    WARNING = "#f39c12"
-    ERROR = "#e74c3c"
-    LIGHT_GRAY = "#bdc3c7"
-    WHITE = "#ffffff"
-    HIGHLIGHT = "#2980b9"
-    ROW_EVEN = "#CBD8DE"
-    ROW_ODD = "#ffffff"
+    PRIMARY = "#3498db"  # Azul mais vibrante
+    SECONDARY = "#2980b9"  # Azul mais escuro
+    ACCENT = "#2ecc71"  # Verde
+    BACKGROUND = "#f8f9fa"  # Cinza claro
+    TEXT = "#2c3e50"  # Azul escuro
+    SUCCESS = "#27ae60"  # Verde
+    WARNING = "#f39c12"  # Laranja
+    ERROR = "#e74c3c"  # Vermelho
+    LIGHT_GRAY = "#e0e0e0"  # Cinza claro
+    WHITE = "#ffffff"  # Branco
+    HIGHLIGHT = "#3498db"  # Azul
+    ROW_EVEN = "#f2f2f2"  # Cinza muito claro
+    ROW_ODD = "#ffffff"  # Branco
+    HEADER_BG = "#3498db"  # Azul para cabeçalhos
+    BORDER = "#d1d1d1"  # Cinza para bordas
 
 class Fonts(Enum):
-    TITLE = ("Segoe UI", 14, "bold")
+    TITLE = ("Segoe UI", 16, "bold")
     HEADER = ("Segoe UI", 12, "bold")
     BODY = ("Segoe UI", 10)
     SMALL = ("Segoe UI", 9)
+    BUTTON = ("Segoe UI", 10, "bold")
 
 class ICMSEditorWindow:
     def __init__(self, parent, state_icms_table: Dict[str, float], update_callback):
@@ -288,6 +289,7 @@ class ICMSEditorWindow:
         self.window.title("Editar Tabela de ICMS por Estado")
         self.window.geometry("500x600")
         self.window.configure(bg=ColorScheme.BACKGROUND.value)
+        self.window.resizable(False, False)
         
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -296,51 +298,66 @@ class ICMSEditorWindow:
         self.populate_table()
     
     def configure_styles(self) -> None:
+        self.style.configure("TFrame", background=ColorScheme.BACKGROUND.value)
+        self.style.configure("TButton", 
+                           font=Fonts.BUTTON.value,
+                           padding=8,
+                           background=ColorScheme.PRIMARY.value,
+                           foreground=ColorScheme.WHITE.value,
+                           borderwidth=0)
+        self.style.map("TButton",
+                      background=[('active', ColorScheme.SECONDARY.value)],
+                      relief=[('pressed', 'sunken'), ('!pressed', 'flat')])
+        
         self.style.configure("Treeview", 
                            font=Fonts.BODY.value,
-                           rowheight=28,
+                           rowheight=30,
                            background=ColorScheme.WHITE.value,
                            fieldbackground=ColorScheme.WHITE.value,
                            foreground=ColorScheme.TEXT.value,
-                           bordercolor=ColorScheme.LIGHT_GRAY.value)
+                           bordercolor=ColorScheme.BORDER.value,
+                           borderwidth=1)
         self.style.configure("Treeview.Heading", 
                            font=Fonts.HEADER.value,
-                           background=ColorScheme.PRIMARY.value,
+                           background=ColorScheme.HEADER_BG.value,
                            foreground=ColorScheme.WHITE.value,
-                           relief="flat")
+                           relief="flat",
+                           padding=8)
         self.style.map("Treeview",
                       background=[('selected', ColorScheme.HIGHLIGHT.value)],
                       foreground=[('selected', ColorScheme.WHITE.value)])
-        self.style.configure("Accent.TButton",
-                           background=ColorScheme.ACCENT.value,
-                           foreground=ColorScheme.WHITE.value)
     
     def create_widgets(self) -> None:
         self.main_frame = ttk.Frame(self.window, padding=15)
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
-        self.tree = ttk.Treeview(self.main_frame, columns=("Estado", "ICMS"), show="headings")
+        # Frame para a Treeview e scrollbar
+        tree_frame = ttk.Frame(self.main_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        
+        self.tree = ttk.Treeview(tree_frame, columns=("Estado", "ICMS"), show="headings")
         self.tree.heading("Estado", text="Estado", anchor=tk.CENTER)
         self.tree.heading("ICMS", text="ICMS (%)", anchor=tk.CENTER)
-        self.tree.column("Estado", width=150, anchor=tk.CENTER)
-        self.tree.column("ICMS", width=150, anchor=tk.CENTER)
+        self.tree.column("Estado", width=200, anchor=tk.CENTER)
+        self.tree.column("ICMS", width=200, anchor=tk.CENTER)
         
-        scrollbar = ttk.Scrollbar(self.main_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         
+        # Empacotando Treeview e scrollbar
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Botão de salvar
+        button_frame = ttk.Frame(self.main_frame)
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        
         save_btn = ttk.Button(
-            self.main_frame, 
+            button_frame, 
             text="Salvar Alterações", 
-            command=self.save_changes,
-            style="Accent.TButton"
+            command=self.save_changes
         )
-        
-        self.tree.grid(row=0, column=0, sticky="nsew", pady=(0, 15))
-        scrollbar.grid(row=0, column=1, sticky="ns", pady=(0, 15))
-        save_btn.grid(row=1, column=0, columnspan=2, sticky="ew")
-        
-        self.main_frame.grid_rowconfigure(0, weight=1)
-        self.main_frame.grid_columnconfigure(0, weight=1)
+        save_btn.pack(fill=tk.X)
         
         self.tree.bind('<Double-1>', self.edit_cell)
     
@@ -395,73 +412,94 @@ class MainView:
         self.style = ttk.Style()
         self.style.theme_use('clam')
         
+        # Configuração geral
         self.style.configure(".", 
                            font=Fonts.BODY.value,
                            background=ColorScheme.BACKGROUND.value,
                            foreground=ColorScheme.TEXT.value)
         
+        # Botões
         self.style.configure("TButton", 
-                           font=Fonts.BODY.value,
-                           padding=6,
+                           font=Fonts.BUTTON.value,
+                           padding=8,
                            background=ColorScheme.PRIMARY.value,
                            foreground=ColorScheme.WHITE.value,
-                           borderwidth=1)
+                           borderwidth=0)
         self.style.configure("Accent.TButton",
                            background=ColorScheme.ACCENT.value)
         self.style.map("TButton",
                       background=[('active', ColorScheme.SECONDARY.value)],
-                      relief=[('pressed', 'sunken'), ('!pressed', 'raised')])
+                      relief=[('pressed', 'sunken'), ('!pressed', 'flat')])
         self.style.map("Accent.TButton",
-                     background=[('active', ColorScheme.HIGHLIGHT.value)])
+                     background=[('active', ColorScheme.SUCCESS.value)])
         
+        # Labels
         self.style.configure("TLabel", font=Fonts.BODY.value)
         self.style.configure("Title.TLabel", 
                            font=Fonts.TITLE.value,
                            foreground=ColorScheme.WHITE.value,
-                           background=ColorScheme.PRIMARY.value)
+                           background=ColorScheme.PRIMARY.value,
+                           padding=10)
         self.style.configure("Subtitle.TLabel",
                            font=Fonts.HEADER.value,
                            foreground=ColorScheme.PRIMARY.value)
         
+        # Frames
         self.style.configure("TFrame", background=ColorScheme.BACKGROUND.value)
-        self.style.configure("Header.TFrame", background=ColorScheme.PRIMARY.value)
+        self.style.configure("Header.TFrame", 
+                           background=ColorScheme.PRIMARY.value,
+                           borderwidth=0)
         self.style.configure("TLabelframe", 
                            background=ColorScheme.BACKGROUND.value,
-                           bordercolor=ColorScheme.LIGHT_GRAY.value)
+                           bordercolor=ColorScheme.BORDER.value,
+                           relief="solid",
+                           borderwidth=1)
         self.style.configure("TLabelframe.Label", 
                            font=Fonts.HEADER.value,
-                           foreground=ColorScheme.PRIMARY.value)
+                           foreground=ColorScheme.PRIMARY.value,
+                           background=ColorScheme.BACKGROUND.value)
         
+        # Combobox
         self.style.configure("TCombobox", 
                            font=Fonts.BODY.value, 
-                           padding=5,
-                           fieldbackground=ColorScheme.WHITE.value)
+                           padding=6,
+                           fieldbackground=ColorScheme.WHITE.value,
+                           bordercolor=ColorScheme.BORDER.value)
+        self.style.map("TCombobox",
+                      fieldbackground=[('readonly', ColorScheme.WHITE.value)],
+                      selectbackground=[('readonly', ColorScheme.WHITE.value)])
         
+        # Treeview
         self.style.configure("Treeview", 
                            font=Fonts.BODY.value,
-                           rowheight=28,
+                           rowheight=30,
                            background=ColorScheme.WHITE.value,
                            fieldbackground=ColorScheme.WHITE.value,
                            foreground=ColorScheme.TEXT.value,
-                           bordercolor=ColorScheme.LIGHT_GRAY.value)
+                           bordercolor=ColorScheme.BORDER.value)
         self.style.configure("Treeview.Heading", 
                            font=Fonts.HEADER.value,
-                           background=ColorScheme.PRIMARY.value,
+                           background=ColorScheme.HEADER_BG.value,
                            foreground=ColorScheme.WHITE.value,
-                           relief="flat")
+                           relief="flat",
+                           padding=8)
         self.style.map("Treeview",
                       background=[('selected', ColorScheme.HIGHLIGHT.value)],
                       foreground=[('selected', ColorScheme.WHITE.value)])
         
+        # Status bar
         self.style.configure("Status.TLabel", 
                            font=Fonts.SMALL.value,
                            background=ColorScheme.SECONDARY.value,
                            foreground=ColorScheme.WHITE.value,
                            padding=5,
                            relief=tk.SUNKEN)
+        
+        # Configurar padding e bordas
+        self.style.configure("TEntry", padding=6)
     
     def setup_ui(self) -> None:
-        self.root.title("Sistema de Cálculo de Custos e Impostos")
+        self.root.title("Sistema de precificação")
         self.root.state('zoomed')
         self.root.configure(bg=ColorScheme.BACKGROUND.value)
         
@@ -482,18 +520,19 @@ class MainView:
         self.set_default_values()
     
     def create_header(self) -> None:
-        header_frame = ttk.Frame(self.root, style="Header.TFrame", padding=(15, 10, 15, 10))
+        header_frame = ttk.Frame(self.root, style="Header.TFrame")
         header_frame.pack(fill=tk.X)
         
         title_label = ttk.Label(
             header_frame, 
-            text="Sistema de Cálculo de Custos e Impostos", 
+            text="Sistema de precificação", 
             style="Title.TLabel"
         )
-        title_label.pack(side=tk.LEFT)
+        title_label.pack(side=tk.LEFT, padx=10)
         
-        ttk.Frame(header_frame).pack(side=tk.LEFT, expand=True, fill=tk.X)
-        
+        # Espaço flexível para alinhar elementos à direita se necessário
+        ttk.Frame(header_frame, style="Header.TFrame").pack(side=tk.LEFT, expand=True, fill=tk.X)
+    
     def create_input_frame(self) -> None:
         self.input_frame = ttk.LabelFrame(
             self.root, 
@@ -501,12 +540,14 @@ class MainView:
             padding=(15, 10),
             style="TLabelframe"
         )
-        self.input_frame.pack(fill=tk.X, padx=15, pady=(10, 5), ipady=5)
+        self.input_frame.pack(fill=tk.X, padx=15, pady=(15, 10), ipady=5)
         
+        # Configurar grid para campos de entrada
         self.input_frame.grid_columnconfigure(1, weight=1)
         self.input_frame.grid_columnconfigure(3, weight=1)
-        self.input_frame.grid_columnconfigure(5, minsize=10)
+        self.input_frame.grid_columnconfigure(5, minsize=20)  # Espaçamento entre colunas
         
+        # Campos do lado esquerdo
         left_fields = [
             ("Descrição:", "description", 30),
             ("Valor Unitário de Custo (R$):", "unit_cost", 15),
@@ -515,6 +556,7 @@ class MainView:
             ("Estado de Destino:", "state", 5)
         ]
         
+        # Campos do lado direito
         right_fields = [
             ("ICMS (%):", "icms", 10),
             ("PIS (%):", "pis", 10),
@@ -525,9 +567,10 @@ class MainView:
         
         self.input_widgets = {}
         
+        # Criar campos do lado esquerdo
         for row, (label, name, width) in enumerate(left_fields):
             lbl = ttk.Label(self.input_frame, text=label)
-            lbl.grid(row=row, column=0, sticky=tk.W, padx=5, pady=3)
+            lbl.grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
             
             if name == "state":
                 widget = ttk.Combobox(self.input_frame, 
@@ -538,25 +581,29 @@ class MainView:
             else:
                 widget = ttk.Entry(self.input_frame, width=width)
             
-            widget.grid(row=row, column=1, sticky=tk.EW, padx=5, pady=3)
+            widget.grid(row=row, column=1, sticky=tk.EW, padx=5, pady=5)
             self.input_widgets[name] = widget
         
+        # Criar campos do lado direito
         for row, (label, name, width) in enumerate(right_fields):
             lbl = ttk.Label(self.input_frame, text=label)
-            lbl.grid(row=row, column=3, sticky=tk.W, padx=(15,5), pady=3)
+            lbl.grid(row=row, column=3, sticky=tk.W, padx=(15,5), pady=5)
             
             widget = ttk.Entry(self.input_frame, width=width)
-            widget.grid(row=row, column=4, sticky=tk.EW, padx=5, pady=3)
+            widget.grid(row=row, column=4, sticky=tk.EW, padx=5, pady=5)
             self.input_widgets[name] = widget
         
+        # Frame para botões
         button_frame = ttk.Frame(self.input_frame)
         button_frame.grid(row=5, column=0, columnspan=5, pady=(10, 0), sticky=tk.EW)
         
+        # Configurar grid para botões
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=0)
         button_frame.grid_columnconfigure(2, weight=0)
         button_frame.grid_columnconfigure(3, weight=1)
         
+        # Botão Adicionar Item
         add_btn = ttk.Button(
             button_frame, 
             text="Adicionar Item", 
@@ -565,6 +612,7 @@ class MainView:
         )
         add_btn.grid(row=0, column=1, padx=5, sticky=tk.EW)
         
+        # Botão Excluir Item
         delete_btn = ttk.Button(
             button_frame, 
             text="Excluir Item", 
@@ -580,11 +628,17 @@ class MainView:
             padding=(10, 5),
             style="TLabelframe"
         )
-        self.table_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
+        self.table_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 10))
         
+        # Container para Treeview e scrollbars
         container = ttk.Frame(self.table_frame)
         container.pack(fill=tk.BOTH, expand=True)
         
+        # Configurar grid no container
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+        
+        # Criar Treeview
         self.tree = ttk.Treeview(
             container, 
             columns=self.model.columns,
@@ -593,57 +647,63 @@ class MainView:
             style="Treeview"
         )
         
+        # Definir larguras das colunas
         column_widths = {
             "Item": 60,
             "Descrição": 250,
-            "Valor Unitário de Custo (R$)": 230,
-            "Quantidade": 100,
-            "Valor Total de Custo (R$)": 210,
-            "Margem de Lucro Bruto (%)": 310,
-            "Valor Unitário de Venda (R$)": 300,
-            "Valor Total de Venda (R$)": 300,
-            "Estado de Destino": 200,
-            "ICMS (%)": 300,
-            "Valor unit. ICMS": 300,
-            "Valor Total ICMS (R$)": 300,
-            "PIS (%)": 300,
-            "Valor unit. PIS": 300,
-            "Valor Total PIS (R$)": 300,
-            "COFINS (%)": 300,
-            "Valor unit. COFINS": 300,
-            "Valor Total COFINS (R$)": 300,
-            "IRPJ (%)": 300,
-            "Valor unit. IRPJ": 300,
-            "Valor Total IRPJ (R$)": 300,
-            "CSLL (%)": 300,
-            "Valor unit. CSLL": 300,
-            "Valor Total CSLL (R$)": 300,
-            "Valor Total de impostos": 300,
-            "Valor Total Unitário": 300,
-            "Valor Total": 300,
-            "Total Alíquota Impostos (%)": 300
+            "Valor Unitário de Custo (R$)": 150,
+            "Quantidade": 80,
+            "Valor Total de Custo (R$)": 150,
+            "Margem de Lucro Bruto (%)": 120,
+            "Valor Unitário de Venda (R$)": 150,
+            "Valor Total de Venda (R$)": 150,
+            "Estado de Destino": 80,
+            "ICMS (%)": 80,
+            "Valor unit. ICMS": 120,
+            "Valor Total ICMS (R$)": 120,
+            "PIS (%)": 80,
+            "Valor unit. PIS": 120,
+            "Valor Total PIS (R$)": 120,
+            "COFINS (%)": 80,
+            "Valor unit. COFINS": 120,
+            "Valor Total COFINS (R$)": 120,
+            "IRPJ (%)": 80,
+            "Valor unit. IRPJ": 120,
+            "Valor Total IRPJ (R$)": 120,
+            "CSLL (%)": 80,
+            "Valor unit. CSLL": 120,
+            "Valor Total CSLL (R$)": 120,
+            "Valor Total de impostos": 150,
+            "Valor Total Unitário": 150,
+            "Valor Total": 150,
+            "Total Alíquota Impostos (%)": 150
         }
         
+        # Configurar cabeçalhos e colunas
         for col in self.model.columns:
             self.tree.heading(col, text=col, anchor=tk.CENTER)
             width = column_widths.get(col, 100)
             self.tree.column(col, width=width, anchor=tk.CENTER, stretch=False)
         
+        # Scrollbars
         vsb = ttk.Scrollbar(container, orient="vertical", command=self.tree.yview)
         hsb = ttk.Scrollbar(container, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
         
+        # Posicionar widgets no grid
         self.tree.grid(row=0, column=0, sticky="nsew")
         vsb.grid(row=0, column=1, sticky="ns")
         hsb.grid(row=1, column=0, sticky="ew")
         
-        container.grid_rowconfigure(0, weight=1)
-        container.grid_columnconfigure(0, weight=1)
-        
+        # Configurar tags para linhas alternadas e total
         self.tree.tag_configure('evenrow', background=ColorScheme.ROW_EVEN.value)
         self.tree.tag_configure('oddrow', background=ColorScheme.ROW_ODD.value)
-        self.tree.tag_configure('total', background=ColorScheme.LIGHT_GRAY.value, font=Fonts.HEADER.value)
+        self.tree.tag_configure('total', 
+                              background=ColorScheme.LIGHT_GRAY.value, 
+                              font=Fonts.HEADER.value,
+                              foreground=ColorScheme.TEXT.value)
         
+        # Bind para redimensionamento de colunas
         def handle_column_resize(event):
             column_id = self.tree.identify_column(event.x)
             col_index = int(column_id[1:]) - 1
@@ -657,7 +717,6 @@ class MainView:
         self.tree.bind("<B1-Motion>", handle_column_resize)
         self.tree.bind("<ButtonRelease-1>", lambda e: self.tree.config(cursor=""))
         self.tree.bind("<Button-1>", self.start_column_resize)
-        self.tree.bind('<Double-1>', self.controller.edit_cell)
 
     def start_column_resize(self, event):
         region = self.tree.identify_region(event.x, event.y)
@@ -676,8 +735,13 @@ class MainView:
         self.status_bar.pack(fill=tk.X, padx=0, pady=0)
     
     def create_menu(self) -> None:
-        menubar = tk.Menu(self.root, bg=ColorScheme.BACKGROUND.value, fg=ColorScheme.TEXT.value)
+        menubar = tk.Menu(self.root, 
+                         bg=ColorScheme.BACKGROUND.value, 
+                         fg=ColorScheme.TEXT.value,
+                         activebackground=ColorScheme.PRIMARY.value,
+                         activeforeground=ColorScheme.WHITE.value)
         
+        # Menu Arquivo
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Novo", command=self.controller.new_file, accelerator="Ctrl+N")
         file_menu.add_command(label="Abrir", command=self.controller.open_file, accelerator="Ctrl+O")
@@ -687,16 +751,18 @@ class MainView:
         file_menu.add_command(label="Sair", command=self.root.quit, accelerator="Alt+F4")
         menubar.add_cascade(label="Arquivo", menu=file_menu)
         
+        # Menu Ações
         action_menu = tk.Menu(menubar, tearoff=0)
-        # Removido o item "Calcular Totais"
         action_menu.add_command(label="Limpar Planilha", command=self.controller.clear_spreadsheet)
         action_menu.add_command(label="Excluir Item Selecionado", command=self.controller.delete_selected, accelerator="Del")
         menubar.add_cascade(label="Ações", menu=action_menu)
         
+        # Menu Configurações
         config_menu = tk.Menu(menubar, tearoff=0)
         config_menu.add_command(label="Editar Tabela de ICMS por Estado", command=self.controller.edit_icms_table)
         menubar.add_cascade(label="Configurações", menu=config_menu)
         
+        # Menu Informações
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="Sobre", command=self.controller.show_about)
         help_menu.add_command(label="Ajuda", command=self.controller.show_help)
@@ -704,6 +770,7 @@ class MainView:
         
         self.root.config(menu=menubar)
         
+        # Atalhos de teclado
         self.root.bind("<Control-n>", lambda e: self.controller.new_file())
         self.root.bind("<Control-o>", lambda e: self.controller.open_file())
         self.root.bind("<Control-s>", lambda e: self.controller.save_file())
@@ -764,7 +831,7 @@ class MainView:
                 
                 formatted_totals.append(formatted_value)
             
-        self.tree.insert("", tk.END, values=formatted_totals, tags=('total',))
+            self.tree.insert("", tk.END, values=formatted_totals, tags=('total',))
     
     def update_row_in_table(self, row_index: int, item: str) -> None:
         formatted_values = []
@@ -805,6 +872,7 @@ class Controller:
             self.model.add_item(item_data)
             self.view.update_table()
             
+            # Limpar campos após adição
             self.view.input_widgets['description'].delete(0, tk.END)
             self.view.input_widgets['unit_cost'].delete(0, tk.END)
             self.view.input_widgets['unit_cost'].insert(0, "1,00")
@@ -826,7 +894,7 @@ class Controller:
         item = self.view.tree.identify_row(event.y)
         column = self.view.tree.identify_column(event.x)
         
-        # Block editing for totals row
+        # Bloquear edição para linha de totais
         if 'total' in self.view.tree.item(item, 'tags'):
             return
         
@@ -835,23 +903,22 @@ class Controller:
         
         col_name = self.model.columns[int(column[1:])-1]
         
-        # Prevent editing the 'Item' column
+        # Impedir edição da coluna 'Item'
         if col_name == 'Item':
             return
         
         try:
             row_index = int(item)
         except ValueError:
-            return  # Invalid item (e.g., totals row)
+            return  # Item inválido (ex: linha de totais)
         
         try:
             current_value = self.model.data.at[row_index, col_name]
         except KeyError:
-            return  # Invalid column name
+            return  # Nome de coluna inválido
         
-        # Create inplace editor
+        # Criar editor inplace
         self._create_inplace_editor(item, column, col_name, row_index, current_value)
-        
         
     def _create_inplace_editor(self, item, column, col_name, row_index, current_value):
         # Obtém as coordenadas da célula
@@ -891,7 +958,7 @@ class Controller:
                 new_value = entry.get()
                 
                 if col_name in ['Descrição', 'Estado de Destino', 'Item']:
-                    pass  # Keep as string
+                    pass  # Manter como string
                 else:
                     new_value = new_value.replace('.', '').replace(',', '.')
                     new_value = float(new_value)
@@ -934,9 +1001,8 @@ class Controller:
         if messagebox.askyesno("Confirmar", f"Deseja excluir {len(selected_items)} item(ns)?"):
             indices = [int(item) for item in selected_items]
             self.model.delete_items(indices)
-            self.view.update_table()  # This triggers automatic total update
+            self.view.update_table()  # Isso aciona a atualização automática dos totais
             self.view.status_bar.config(text=f"{len(selected_items)} item(ns) excluído(s) com sucesso!")
-    
     
     def new_file(self) -> None:
         if not self.model.data.empty:
@@ -994,10 +1060,9 @@ class Controller:
             self.model.clear_data()
             self.view.update_table()
             self.view.status_bar.config(text="Planilha limpa.")
-            
     
     def show_help(self) -> None:
-        help_text = """Sistema de Cálculo de Custos e Impostos
+        help_text = """Sistema de precificação
 
 Como usar:
 1. Preencha os campos no painel "Adicionar Item"
@@ -1016,9 +1081,9 @@ Atalhos:
         messagebox.showinfo("Ajuda", help_text)
     
     def show_about(self) -> None:
-        about_text = """Sistema de Cálculo de Custos e Impostos
+        about_text = """Sistema de precificação
 
-Versão: 1.0 BETA
+Versão: 2.0 BETA
 Desenvolvido por: Danilo Araujo Mota
 Contato: daniloaraujomota@gmail.com
 Data: 2025
@@ -1044,7 +1109,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
 """
         
         messagebox.showinfo("Sobre", about_text)
